@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Admin Login — Chocxo Amazon KPIs</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: { extend: { colors: { navy: '#1F2A44', cocoa: '#6B3410', cream: '#FAF6F0' } } }
+    }
+  </script>
+</head>
+<body class="bg-cream min-h-screen flex items-center justify-center font-sans">
+  <div class="w-full max-w-md p-6">
+    <a href="/" class="text-sm text-slate-500 hover:text-navy mb-4 inline-block">← Back to dashboard</a>
+    <div class="bg-white rounded-lg shadow-sm p-8">
+      <h1 class="text-2xl font-bold text-navy mb-2">Admin Login</h1>
+      <p class="text-sm text-slate-600 mb-6">Sign in to upload data and manage the catalog.</p>
+
+      <form id="login-form" class="space-y-4">
+        <div>
+          <label class="block text-xs font-bold text-navy uppercase tracking-wide mb-1">Email</label>
+          <input id="email" type="email" required class="w-full border border-slate-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-cocoa" />
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-navy uppercase tracking-wide mb-1">Password</label>
+          <input id="password" type="password" required class="w-full border border-slate-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-cocoa" />
+        </div>
+        <button type="submit" class="w-full bg-cocoa text-white py-2.5 rounded font-semibold hover:bg-cocoa/90">
+          Sign In
+        </button>
+        <div id="error" class="text-sm text-red-600 hidden"></div>
+      </form>
+    </div>
+  </div>
+
+  <script src="/config.js"></script>
+  <script>
+    const sb = window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
+
+    sb.auth.getUser().then(({ data }) => {
+      if (data.user) window.location.href = '/admin';
+    });
+
+    document.getElementById('login-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const email = document.getElementById('email').value;
+      const password = document.getElementById('password').value;
+      const errEl = document.getElementById('error');
+      errEl.classList.add('hidden');
+
+      const { data, error } = await sb.auth.signInWithPassword({ email, password });
+      if (error) {
+        errEl.textContent = error.message;
+        errEl.classList.remove('hidden');
+        return;
+      }
+      window.location.href = '/admin';
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Admin — Chocxo Amazon KPIs</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            navy: '#1F2A44', cocoa: '#6B3410', 'cocoa-mid': '#8B5A2B', gold: '#C9A961',
+            cream: '#FAF6F0', good: '#2F8F5F', bad: '#C0392B',
+          }
+        }
+      }
+    }
+  </script>
+</head>
+<body class="bg-cream font-sans text-slate-900">
+  <nav class="bg-cocoa text-white">
+    <div class="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between">
+      <div class="flex items-center gap-6">
+        <h1 class="text-lg font-bold tracking-tight">Chocxo · Admin</h1>
+        <div class="hidden sm:flex gap-1 text-sm">
+          <a href="/" class="px-3 py-1.5 rounded hover:bg-white/10">← Dashboard</a>
+        </div>
+      </div>
+      <div class="flex items-center gap-3 text-sm">
+        <span id="auth-status" class="text-white/70"></span>
+        <button id="logout-btn" class="px-3 py-1.5 rounded bg-white/10 hover:bg-white/20">Sign out</button>
+      </div>
+    </div>
+  </nav>
+
+  <main class="max-w-7xl mx-auto px-6 py-8">
+
+    <div class="flex gap-2 mb-6 border-b border-slate-200">
+      <button data-tab="upload" class="admin-tab px-4 py-2 text-sm font-semibold border-b-2 border-cocoa text-navy">Upload Data</button>
+      <button data-tab="catalog" class="admin-tab px-4 py-2 text-sm font-semibold border-b-2 border-transparent text-slate-500 hover:text-navy">Manage Catalog</button>
+      <button data-tab="edit-sb" class="admin-tab px-4 py-2 text-sm font-semibold border-b-2 border-transparent text-slate-500 hover:text-navy">Edit Sellerboard</button>
+      <button data-tab="edit-ppc" class="admin-tab px-4 py-2 text-sm font-semibold border-b-2 border-transparent text-slate-500 hover:text-navy">Edit PPC</button>
+    </div>
+
+    <section id="tab-upload" class="admin-section">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+        <div class="bg-white rounded-lg shadow-sm p-6">
+          <h2 class="text-lg font-bold text-navy">Sellerboard Upload</h2>
+          <p class="text-sm text-slate-600 mt-1">Drop your monthly Sellerboard export (.xlsx).</p>
+
+          <div class="mt-4">
+            <label class="block text-xs font-bold text-navy uppercase tracking-wide mb-1">Month</label>
+            <select id="sb-month" class="w-full border border-slate-300 rounded px-3 py-2 text-sm"></select>
+          </div>
+
+          <div id="sb-drop" class="mt-4 border-2 border-dashed border-slate-300 rounded-lg p-8 text-center cursor-pointer hover:border-cocoa hover:bg-cocoa/5 transition">
+            <div class="text-3xl mb-2">🍫</div>
+            <p class="text-sm font-semibold text-navy">Drop Sellerboard .xlsx here</p>
+            <p class="text-xs text-slate-500 mt-1">or click to browse</p>
+            <input id="sb-file" type="file" accept=".xlsx,.xls" class="hidden" />
+          </div>
+          <div id="sb-preview" class="mt-4 hidden"></div>
+        </div>
+
+        <div class="bg-white rounded-lg shadow-sm p-6">
+          <h2 class="text-lg font-bold text-navy">PPC / Seller Central Upload</h2>
+          <p class="text-sm text-slate-600 mt-1">Drop your monthly Amazon Campaigns export (.xlsx or .csv).</p>
+
+          <div class="mt-4">
+            <label class="block text-xs font-bold text-navy uppercase tracking-wide mb-1">Month</label>
+            <select id="ppc-month" class="w-full border border-slate-300 rounded px-3 py-2 text-sm"></select>
+          </div>
+
+          <div id="ppc-drop" class="mt-4 border-2 border-dashed border-slate-300 rounded-lg p-8 text-center cursor-pointer hover:border-gold hover:bg-gold/5 transition">
+            <div class="text-3xl mb-2">📈</div>
+            <p class="text-sm font-semibold text-navy">Drop Campaigns .xlsx or .csv here</p>
+            <p class="text-xs text-slate-500 mt-1">or click to browse</p>
+            <input id="ppc-file" type="file" accept=".xlsx,.xls,.csv" class="hidden" />
+          </div>
+          <div id="ppc-preview" class="mt-4 hidden"></div>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-lg shadow-sm p-6 mt-6">
+        <h2 class="text-lg font-bold text-navy">Bulk Upload (multiple files)</h2>
+        <p class="text-sm text-slate-600 mt-1">Drop multiple files at once. Filenames containing a month name (e.g., <code class="text-xs bg-slate-100 px-1 rounded">..._January_2026.xlsx</code>) get auto-tagged.</p>
+        <div id="bulk-drop" class="mt-4 border-2 border-dashed border-slate-300 rounded-lg p-10 text-center cursor-pointer hover:border-navy hover:bg-navy/5 transition">
+          <div class="text-4xl mb-2">📦</div>
+          <p class="text-sm font-semibold text-navy">Drop multiple files here</p>
+          <p class="text-xs text-slate-500 mt-1">or click to select several</p>
+          <input id="bulk-file" type="file" accept=".xlsx,.xls,.csv" multiple class="hidden" />
+        </div>
+        <div id="bulk-queue" class="mt-4 space-y-2"></div>
+      </div>
+    </section>
+
+    <section id="tab-catalog" class="admin-section hidden">
+      <div class="bg-white rounded-lg shadow-sm p-6">
+        <div class="flex items-center justify-between mb-4">
+          <h2 class="text-lg font-bold text-navy">Catalog</h2>
+          <button id="add-sku-btn" class="bg-cocoa text-white px-4 py-2 rounded text-sm font-semibold hover:bg-cocoa/90">+ Add SKU</button>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead class="bg-cocoa text-white text-xs uppercase">
+              <tr>
+                <th class="px-3 py-2 text-left">ASIN</th>
+                <th class="px-3 py-2 text-left">Internal SKU</th>
+                <th class="px-3 py-2 text-left">Product Name</th>
+                <th class="px-3 py-2 text-left">Category</th>
+                <th class="px-3 py-2 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="catalog-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section id="tab-edit-sb" class="admin-section hidden">
+      <div class="bg-white rounded-lg shadow-sm p-6">
+        <div class="flex items-center justify-between mb-4 gap-4 flex-wrap">
+          <h2 class="text-lg font-bold text-navy">Sellerboard Data</h2>
+          <select id="edit-sb-month" class="border border-slate-300 rounded px-3 py-2 text-sm"></select>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead class="bg-cocoa text-white text-xs uppercase">
+              <tr>
+                <th class="px-3 py-2 text-left">Month</th>
+                <th class="px-3 py-2 text-left">ASIN</th>
+                <th class="px-3 py-2 text-right">Sessions</th>
+                <th class="px-3 py-2 text-right">Units</th>
+                <th class="px-3 py-2 text-right">Sales</th>
+                <th class="px-3 py-2 text-right">Refunds</th>
+                <th class="px-3 py-2 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="edit-sb-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section id="tab-edit-ppc" class="admin-section hidden">
+      <div class="bg-white rounded-lg shadow-sm p-6">
+        <div class="flex items-center justify-between mb-4 gap-4 flex-wrap">
+          <h2 class="text-lg font-bold text-navy">PPC Data</h2>
+          <select id="edit-ppc-month" class="border border-slate-300 rounded px-3 py-2 text-sm"></select>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead class="bg-cocoa text-white text-xs uppercase">
+              <tr>
+                <th class="px-3 py-2 text-left">Month</th>
+                <th class="px-3 py-2 text-left">Campaign</th>
+                <th class="px-3 py-2 text-center">Type</th>
+                <th class="px-3 py-2 text-right">Impr</th>
+                <th class="px-3 py-2 text-right">Clicks</th>
+                <th class="px-3 py-2 text-right">Spend</th>
+                <th class="px-3 py-2 text-right">Sales</th>
+                <th class="px-3 py-2 text-right">Orders</th>
+                <th class="px-3 py-2 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="edit-ppc-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <div id="toast-container" class="fixed bottom-4 right-4 space-y-2 z-50"></div>
+
+  <script src="/config.js"></script>
+  <script src="/app.js"></script>
+  <script src="/admin.js"></script>
+</body>
+</html>

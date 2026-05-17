@@ -1,0 +1,247 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Chocxo — Amazon Performance Dashboard</title>
+  <link rel="preconnect" href="https://cdn.jsdelivr.net">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            navy:    '#1F2A44',
+            cocoa:   '#6B3410',     // Chocxo primary
+            'cocoa-mid': '#8B5A2B',
+            gold:    '#C9A961',
+            cream:   '#FAF6F0',
+            mid:     '#EFE6D6',
+            'good':  '#2F8F5F',
+            'bad':   '#C0392B',
+          },
+          fontFamily: {
+            sans: ['Inter', 'system-ui', 'Arial', 'sans-serif'],
+          }
+        }
+      }
+    }
+  </script>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body class="bg-cream text-slate-900 font-sans">
+  <!-- ============ NAV BAR ============ -->
+  <nav class="bg-cocoa text-white">
+    <div class="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between">
+      <div class="flex items-center gap-6">
+        <h1 class="text-lg font-bold tracking-tight">Chocxo · Amazon KPIs</h1>
+        <div class="hidden sm:flex gap-1 text-sm">
+          <a href="/" class="px-3 py-1.5 rounded bg-white/10 hover:bg-white/20">Dashboard</a>
+          <a href="/trends" class="px-3 py-1.5 rounded hover:bg-white/10">Trends</a>
+          <a href="/products" class="px-3 py-1.5 rounded hover:bg-white/10">By Product</a>
+          <a href="/ppc" class="px-3 py-1.5 rounded hover:bg-white/10">PPC Detail</a>
+        </div>
+      </div>
+      <div class="flex items-center gap-3 text-sm">
+        <span id="auth-status" class="text-white/70"></span>
+        <a id="admin-link" href="/login" class="px-3 py-1.5 rounded bg-white/10 hover:bg-white/20">Admin</a>
+      </div>
+    </div>
+  </nav>
+
+  <header class="bg-cocoa text-white">
+    <div class="max-w-7xl mx-auto px-6 pb-6">
+      <p class="text-white/70 text-sm">Vendor-facing dashboard · Chocxo · 10 SKUs · Retail Chocolate</p>
+    </div>
+  </header>
+
+  <div class="max-w-7xl mx-auto px-6 mt-6 flex items-center gap-4 flex-wrap">
+    <label class="text-sm font-semibold text-navy">Reporting Month:</label>
+    <select id="month-select" class="border border-slate-300 rounded px-3 py-2 bg-white text-sm font-medium focus:outline-none focus:ring-2 focus:ring-cocoa">
+    </select>
+    <span id="data-status" class="text-xs text-slate-500"></span>
+  </div>
+
+  <main class="max-w-7xl mx-auto px-6 mt-4 pb-12">
+
+    <!-- ====== TOP TILES ====== -->
+    <section class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
+      <div class="bg-white rounded-lg shadow-sm border-t-4 border-cocoa p-5">
+        <div class="text-xs font-bold text-cocoa uppercase tracking-wide">Total Sales</div>
+        <div id="kpi-total-sales" class="text-3xl font-bold text-navy mt-2">—</div>
+      </div>
+      <div class="bg-white rounded-lg shadow-sm border-t-4 border-gold p-5">
+        <div class="text-xs font-bold text-gold uppercase tracking-wide">Ad Spend</div>
+        <div id="kpi-total-ad-spend" class="text-3xl font-bold text-navy mt-2">—</div>
+      </div>
+      <div class="bg-white rounded-lg shadow-sm border-t-4 border-cocoa-mid p-5">
+        <div class="text-xs font-bold text-cocoa-mid uppercase tracking-wide">Total Units</div>
+        <div id="kpi-total-units" class="text-3xl font-bold text-navy mt-2">—</div>
+      </div>
+      <div class="bg-white rounded-lg shadow-sm border-t-4 border-navy p-5">
+        <div class="text-xs font-bold text-navy uppercase tracking-wide">MoM Sales</div>
+        <div id="kpi-mom-sales" class="text-3xl font-bold text-navy mt-2">—</div>
+      </div>
+    </section>
+
+    <!-- ====== KPI GRID + MoM PANEL ====== -->
+    <section class="bg-white rounded-lg shadow-sm overflow-hidden mb-6">
+      <div class="bg-cocoa text-white py-3 text-center font-bold uppercase tracking-wide">Chocxo KPI Snapshot</div>
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-0">
+        <!-- 16 KPI grid (2 cols) -->
+        <div class="lg:col-span-2 p-5 grid grid-cols-2 md:grid-cols-4 gap-x-4 gap-y-3 text-sm border-r border-mid">
+          <!-- populated by JS -->
+          <div id="kpi-grid" class="contents"></div>
+        </div>
+        <!-- MoM detail panel -->
+        <div class="bg-mid/30">
+          <div class="bg-navy text-white py-2 text-center text-xs font-bold uppercase tracking-wide">Month-over-Month</div>
+          <div class="p-5 grid grid-cols-1 gap-y-3 text-sm" id="mom-panel">
+            <!-- populated by JS -->
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ====== TOP SKUs ====== -->
+    <section class="bg-white rounded-lg shadow-sm overflow-hidden mb-6">
+      <div class="bg-navy text-white px-5 py-3 font-bold uppercase tracking-wide flex items-center justify-between">
+        <span>Top SKUs · <span id="top-skus-month-pill"></span></span>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead class="bg-cream text-cocoa text-xs uppercase">
+            <tr>
+              <th class="px-3 py-2 text-left">SKU</th>
+              <th class="px-3 py-2 text-left">Product</th>
+              <th class="px-3 py-2 text-right">Units</th>
+              <th class="px-3 py-2 text-right">Sessions</th>
+              <th class="px-3 py-2 text-right">CVR</th>
+              <th class="px-3 py-2 text-right">Sales</th>
+              <th class="px-3 py-2 text-right">Refund</th>
+            </tr>
+          </thead>
+          <tbody id="top-skus-body"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ====== SALES CHART ====== -->
+    <section class="bg-white rounded-lg shadow-sm p-5 mb-6">
+      <h2 class="text-lg font-bold text-navy mb-4">Monthly Sales Trend (YTD)</h2>
+      <div class="h-80">
+        <canvas id="sales-chart"></canvas>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ============ Sub-pages ============ -->
+  <div id="trends-page" class="hidden max-w-7xl mx-auto px-6 pb-12">
+    <h2 class="text-2xl font-bold text-navy mb-4 mt-6">Trends</h2>
+    <p class="text-sm text-slate-600 mb-4">Month-by-month performance. Organic Sales = Total Sales minus Ad Sales.</p>
+    <div class="bg-white rounded-lg shadow-sm overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead class="bg-cocoa text-white text-xs uppercase">
+          <tr id="trends-head"></tr>
+        </thead>
+        <tbody id="trends-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div id="products-page" class="hidden max-w-7xl mx-auto px-6 pb-12">
+    <div class="flex items-center justify-between mt-6 mb-4 flex-wrap gap-3">
+      <h2 class="text-2xl font-bold text-navy">By Product</h2>
+      <div id="products-month-pill" class="px-3 py-1 bg-cocoa text-white text-sm rounded font-medium"></div>
+    </div>
+
+    <div class="bg-white rounded-lg shadow-sm p-3 mb-4 flex items-center gap-3 flex-wrap">
+      <label class="text-xs font-bold text-navy uppercase tracking-wide">Sort by:</label>
+      <select id="products-sort" class="border border-slate-300 rounded px-2 py-1.5 text-sm">
+        <option value="sales-desc">Sales (high → low)</option>
+        <option value="sales-asc">Sales (low → high)</option>
+        <option value="units-desc">Units (high → low)</option>
+        <option value="sessions-desc">Sessions (high → low)</option>
+        <option value="cvr-desc">CVR (high → low)</option>
+        <option value="refund-desc">Refund Cost (high → low)</option>
+        <option value="sku-asc">SKU (A → Z)</option>
+      </select>
+      <span class="text-xs text-slate-500 ml-auto hidden sm:inline">Tip: click any column header to sort</span>
+    </div>
+
+    <div class="bg-white rounded-lg shadow-sm overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead class="bg-cocoa text-white text-xs uppercase">
+          <tr id="products-head">
+            <th class="px-3 py-2 text-left cursor-pointer hover:bg-white/10 sortable" data-sort="sku">Internal SKU <span class="sort-arrow"></span></th>
+            <th class="px-3 py-2 text-left">ASIN</th>
+            <th class="px-3 py-2 text-left">Product Name</th>
+            <th class="px-3 py-2 text-right cursor-pointer hover:bg-white/10 sortable" data-sort="units">Units <span class="sort-arrow"></span></th>
+            <th class="px-3 py-2 text-right cursor-pointer hover:bg-white/10 sortable" data-sort="sessions">Sessions <span class="sort-arrow"></span></th>
+            <th class="px-3 py-2 text-right cursor-pointer hover:bg-white/10 sortable" data-sort="cvr">CVR <span class="sort-arrow"></span></th>
+            <th class="px-3 py-2 text-right cursor-pointer hover:bg-white/10 sortable" data-sort="sales">Sales <span class="sort-arrow"></span></th>
+            <th class="px-3 py-2 text-right cursor-pointer hover:bg-white/10 sortable" data-sort="refund">Refund Cost <span class="sort-arrow"></span></th>
+          </tr>
+        </thead>
+        <tbody id="products-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div id="ppc-page" class="hidden max-w-7xl mx-auto px-6 pb-12">
+    <div class="flex items-center justify-between mt-6 mb-4 flex-wrap gap-3">
+      <h2 class="text-2xl font-bold text-navy">PPC Detail</h2>
+      <div id="ppc-month-pill" class="px-3 py-1 bg-cocoa text-white text-sm rounded font-medium"></div>
+    </div>
+    <p class="text-sm text-slate-600 mb-4">Campaign-level metrics. ACoS in red (&gt;25%) or green (&lt;15%).</p>
+
+    <div class="bg-white rounded-lg shadow-sm p-3 mb-4 flex items-center gap-3 flex-wrap">
+      <label class="text-xs font-bold text-navy uppercase tracking-wide">Sort by:</label>
+      <select id="ppc-sort" class="border border-slate-300 rounded px-2 py-1.5 text-sm">
+        <option value="spend-desc">Spend (high → low)</option>
+        <option value="sales-desc">Sales (high → low)</option>
+        <option value="impressions-desc">Impressions (high → low)</option>
+        <option value="clicks-desc">Clicks (high → low)</option>
+        <option value="acos-desc">ACoS (high → low)</option>
+        <option value="acos-asc">ACoS (low → high)</option>
+        <option value="roas-desc">ROAS (high → low)</option>
+        <option value="orders-desc">Orders (high → low)</option>
+        <option value="campaign-asc">Campaign (A → Z)</option>
+      </select>
+      <span class="text-xs text-slate-500 ml-auto hidden sm:inline">Tip: click any column header to sort</span>
+    </div>
+
+    <div class="bg-white rounded-lg shadow-sm overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead class="bg-cocoa text-white text-xs uppercase">
+          <tr id="ppc-head">
+            <th class="px-3 py-2 text-left cursor-pointer hover:bg-white/10 sortable" data-sort="campaign">Campaign <span class="sort-arrow"></span></th>
+            <th class="px-3 py-2 text-center">Type</th>
+            <th class="px-3 py-2 text-right cursor-pointer hover:bg-white/10 sortable" data-sort="impressions">Impr <span class="sort-arrow"></span></th>
+            <th class="px-3 py-2 text-right cursor-pointer hover:bg-white/10 sortable" data-sort="clicks">Clicks <span class="sort-arrow"></span></th>
+            <th class="px-3 py-2 text-right">CTR</th>
+            <th class="px-3 py-2 text-right cursor-pointer hover:bg-white/10 sortable" data-sort="spend">Spend <span class="sort-arrow"></span></th>
+            <th class="px-3 py-2 text-right">CPC</th>
+            <th class="px-3 py-2 text-right cursor-pointer hover:bg-white/10 sortable" data-sort="orders">Orders <span class="sort-arrow"></span></th>
+            <th class="px-3 py-2 text-right cursor-pointer hover:bg-white/10 sortable" data-sort="sales">Sales <span class="sort-arrow"></span></th>
+            <th class="px-3 py-2 text-right cursor-pointer hover:bg-white/10 sortable" data-sort="acos">ACoS <span class="sort-arrow"></span></th>
+            <th class="px-3 py-2 text-right cursor-pointer hover:bg-white/10 sortable" data-sort="roas">ROAS <span class="sort-arrow"></span></th>
+          </tr>
+        </thead>
+        <tbody id="ppc-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <footer class="text-center text-xs text-slate-400 py-6">
+    Last updated: <span id="footer-updated">—</span>
+  </footer>
+
+  <script src="/config.js"></script>
+  <script src="/app.js"></script>
+  <script src="/dashboard.js"></script>
+</body>
+</html>
