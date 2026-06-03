@@ -7,6 +7,8 @@
   <link rel="preconnect" href="https://cdn.jsdelivr.net">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <!-- xlsx-js-style: SheetJS fork with style support for export -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
@@ -14,7 +16,7 @@
         extend: {
           colors: {
             navy:    '#1F2A44',
-            cocoa:   '#6B3410',     // Chocxo primary
+            cocoa:   '#6B3410',
             'cocoa-mid': '#8B5A2B',
             gold:    '#C9A961',
             cream:   '#FAF6F0',
@@ -32,7 +34,6 @@
   <link rel="stylesheet" href="/style.css" />
 </head>
 <body class="bg-cream text-slate-900 font-sans">
-  <!-- ============ NAV BAR ============ -->
   <nav class="bg-cocoa text-white">
     <div class="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between">
       <div class="flex items-center gap-6">
@@ -45,6 +46,9 @@
         </div>
       </div>
       <div class="flex items-center gap-3 text-sm">
+        <button id="export-btn" class="px-3 py-1.5 rounded bg-white/10 hover:bg-white/20 flex items-center gap-1.5" title="Download all data as Excel">
+          <span>↓</span><span class="hidden sm:inline">Export Excel</span>
+        </button>
         <span id="auth-status" class="text-white/70"></span>
         <a id="admin-link" href="/login" class="px-3 py-1.5 rounded bg-white/10 hover:bg-white/20">Admin</a>
       </div>
@@ -66,7 +70,6 @@
 
   <main class="max-w-7xl mx-auto px-6 mt-4 pb-12">
 
-    <!-- ====== TOP TILES ====== -->
     <section class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
       <div class="bg-white rounded-lg shadow-sm border-t-4 border-cocoa p-5">
         <div class="text-xs font-bold text-cocoa uppercase tracking-wide">Total Sales</div>
@@ -86,26 +89,19 @@
       </div>
     </section>
 
-    <!-- ====== KPI GRID + MoM PANEL ====== -->
     <section class="bg-white rounded-lg shadow-sm overflow-hidden mb-6">
       <div class="bg-cocoa text-white py-3 text-center font-bold uppercase tracking-wide">Chocxo KPI Snapshot</div>
       <div class="grid grid-cols-1 lg:grid-cols-3 gap-0">
-        <!-- 16 KPI grid (2 cols) -->
         <div class="lg:col-span-2 p-5 grid grid-cols-2 md:grid-cols-4 gap-x-4 gap-y-3 text-sm border-r border-mid">
-          <!-- populated by JS -->
           <div id="kpi-grid" class="contents"></div>
         </div>
-        <!-- MoM detail panel -->
         <div class="bg-mid/30">
           <div class="bg-navy text-white py-2 text-center text-xs font-bold uppercase tracking-wide">Month-over-Month</div>
-          <div class="p-5 grid grid-cols-1 gap-y-3 text-sm" id="mom-panel">
-            <!-- populated by JS -->
-          </div>
+          <div class="p-5 grid grid-cols-1 gap-y-3 text-sm" id="mom-panel"></div>
         </div>
       </div>
     </section>
 
-    <!-- ====== TOP SKUs ====== -->
     <section class="bg-white rounded-lg shadow-sm overflow-hidden mb-6">
       <div class="bg-navy text-white px-5 py-3 font-bold uppercase tracking-wide flex items-center justify-between">
         <span>Top SKUs · <span id="top-skus-month-pill"></span></span>
@@ -128,7 +124,6 @@
       </div>
     </section>
 
-    <!-- ====== SALES CHART ====== -->
     <section class="bg-white rounded-lg shadow-sm p-5 mb-6">
       <h2 class="text-lg font-bold text-navy mb-4">Monthly Sales Trend (YTD)</h2>
       <div class="h-80">
@@ -138,7 +133,6 @@
 
   </main>
 
-  <!-- ============ Sub-pages ============ -->
   <div id="trends-page" class="hidden max-w-7xl mx-auto px-6 pb-12">
     <h2 class="text-2xl font-bold text-navy mb-4 mt-6">Trends</h2>
     <p class="text-sm text-slate-600 mb-4">Month-by-month performance. Organic Sales = Total Sales minus Ad Sales.</p>
