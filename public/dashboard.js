@@ -1,5 +1,5 @@
 // ============================================================
-// dashboard.js — Chocxo single-brand rendering
+// dashboard.js — Chocxo single-brand rendering + Excel export
 // ============================================================
 
 let salesChart = null;
@@ -15,12 +15,10 @@ function renderDashboard() {
   const prev = priorMonth(month);
   const prior = prev ? rollupForMonth(prev) : null;
 
-  // Top tiles
   document.getElementById('kpi-total-sales').textContent = fmtCurrency(cur.sales);
   document.getElementById('kpi-total-ad-spend').textContent = fmtCurrency(cur.adSpend);
   document.getElementById('kpi-total-units').textContent = fmtNumber(cur.units);
 
-  // MoM Sales tile
   const momEl = document.getElementById('kpi-mom-sales');
   if (prior && prior.sales) {
     const pct = (cur.sales - prior.sales) / prior.sales;
@@ -31,32 +29,26 @@ function renderDashboard() {
     momEl.className = 'text-3xl font-bold text-navy mt-2';
   }
 
-  // KPI grid — 16 metrics in a 4-column layout
   const kpiGrid = document.getElementById('kpi-grid');
   kpiGrid.innerHTML = [
-    // Row 1: Sales-focused
     kpiCell('Gross Sales',   fmtCurrency(cur.sales)),
     kpiCell('Ad Spend',      fmtCurrency(cur.adSpend)),
     kpiCell('Impressions',   fmtNumber(cur.impressions)),
     kpiCell('CTR',           fmtPct(cur.ctr)),
-    // Row 2: Volume
     kpiCell('Units',         fmtNumber(cur.units)),
     kpiCell('Ad Sales',      fmtCurrency(cur.adSales)),
     kpiCell('Clicks',        fmtNumber(cur.clicks)),
     kpiCell('CPC',           fmtCurrency2(cur.cpc)),
-    // Row 3: Efficiency
     kpiCell('Sessions',      fmtNumber(cur.sessions)),
     kpiCell('ACoS',          fmtPct(cur.acos)),
     kpiCell('Ad Orders',     fmtNumber(cur.adOrders)),
     kpiCell('ROAS',          fmtMult(cur.roas)),
-    // Row 4: Quality
     kpiCell('CVR',           fmtPct(cur.cvr)),
     kpiCell('TACoS',         fmtPct(cur.tacos)),
     kpiCell('Organic Sales', fmtCurrency(cur.organicSales)),
     kpiCell('Refund Cost',   fmtCurrency(cur.refundCost)),
   ].join('');
 
-  // MoM panel (right column)
   const momPanel = document.getElementById('mom-panel');
   if (!prior) {
     momPanel.innerHTML = `<div class="text-xs text-slate-500 italic">No prior month data</div>`;
@@ -73,10 +65,8 @@ function renderDashboard() {
     ].join('');
   }
 
-  // Top SKUs table
   document.getElementById('top-skus-month-pill').textContent = month;
   renderTopSkus(month);
-
   renderSalesChart();
 
   const dataMonths = new Set(state.sellerboard.map(r => r.month));
@@ -191,9 +181,7 @@ function renderSalesChart() {
         legend: { position: 'bottom' },
         tooltip: { callbacks: { label: ctx => `${ctx.dataset.label}: ${fmtCurrency2(ctx.parsed.y)}` } }
       },
-      scales: {
-        y: { ticks: { callback: v => '$' + (v >= 1000 ? (v/1000).toFixed(0) + 'k' : v) } }
-      }
+      scales: { y: { ticks: { callback: v => '$' + (v >= 1000 ? (v/1000).toFixed(0) + 'k' : v) } } }
     }
   });
 }
@@ -330,23 +318,21 @@ function renderPpc() {
   if (!body) return;
   body.innerHTML = '';
 
-  let rows = state.ppc
-    .filter(r => r.month === month)
-    .map(r => {
-      const impressions = r.impressions || 0;
-      const clicks = r.clicks || 0;
-      const spend = +r.spend || 0;
-      const sales = +r.sales || 0;
-      return {
-        campaign: r.campaign, ad_type: r.ad_type,
-        impressions, clicks, spend, sales,
-        orders: r.orders || 0,
-        ctr: impressions > 0 ? clicks / impressions : 0,
-        cpc: clicks > 0 ? spend / clicks : 0,
-        acos: sales > 0 ? spend / sales : 0,
-        roas: spend > 0 ? sales / spend : 0,
-      };
-    });
+  let rows = state.ppc.filter(r => r.month === month).map(r => {
+    const impressions = r.impressions || 0;
+    const clicks = r.clicks || 0;
+    const spend = +r.spend || 0;
+    const sales = +r.sales || 0;
+    return {
+      campaign: r.campaign, ad_type: r.ad_type,
+      impressions, clicks, spend, sales,
+      orders: r.orders || 0,
+      ctr: impressions > 0 ? clicks / impressions : 0,
+      cpc: clicks > 0 ? spend / clicks : 0,
+      acos: sales > 0 ? spend / sales : 0,
+      roas: spend > 0 ? sales / spend : 0,
+    };
+  });
 
   rows = sortPpcRows(rows, tableState.ppc.sort);
   updateSortArrows('ppc-head', tableState.ppc.sort);
@@ -434,10 +420,7 @@ function setupTableInteractions() {
   const pSort = document.getElementById('products-sort');
   if (pSort && !pSort.dataset.wired) {
     pSort.dataset.wired = '1';
-    pSort.addEventListener('change', () => {
-      tableState.products.sort = pSort.value;
-      renderProducts();
-    });
+    pSort.addEventListener('change', () => { tableState.products.sort = pSort.value; renderProducts(); });
   }
   const pHead = document.getElementById('products-head');
   if (pHead && !pHead.dataset.wired) {
@@ -462,10 +445,7 @@ function setupTableInteractions() {
   const ppcSort = document.getElementById('ppc-sort');
   if (ppcSort && !ppcSort.dataset.wired) {
     ppcSort.dataset.wired = '1';
-    ppcSort.addEventListener('change', () => {
-      tableState.ppc.sort = ppcSort.value;
-      renderPpc();
-    });
+    ppcSort.addEventListener('change', () => { tableState.ppc.sort = ppcSort.value; renderPpc(); });
   }
   const ppcHead = document.getElementById('ppc-head');
   if (ppcHead && !ppcHead.dataset.wired) {
@@ -488,6 +468,257 @@ function setupTableInteractions() {
   }
 }
 
+// ============================================================
+// EXCEL EXPORT
+// ============================================================
+function setupExportButton() {
+  const btn = document.getElementById('export-btn');
+  if (!btn || btn.dataset.wired) return;
+  btn.dataset.wired = '1';
+  btn.addEventListener('click', exportToExcel);
+}
+
+function exportToExcel() {
+  if (!state.loaded) {
+    alert('Data is still loading. Please try again in a moment.');
+    return;
+  }
+  const btn = document.getElementById('export-btn');
+  const originalHTML = btn.innerHTML;
+  btn.innerHTML = '<span class="opacity-70">Generating…</span>';
+  btn.disabled = true;
+
+  setTimeout(() => {
+    try {
+      const wb = XLSX.utils.book_new();
+
+      // ============ Tab 1 — Dashboard Summary ============
+      // One row per month (Chocxo is single-brand, so no brand split)
+      const summaryRows = [];
+      MONTHS.forEach(month => {
+        const r = rollupForMonth(month);
+        if (r.sales === 0) return;
+        summaryRows.push({
+          Month: month,
+          Sales: r.sales,
+          Units: r.units,
+          Sessions: r.sessions,
+          CVR: r.cvr,
+          'Refund Cost': r.refundCost,
+          'Ad Spend': r.adSpend,
+          'Ad Sales': r.adSales,
+          'Organic Sales': r.organicSales,
+          Impressions: r.impressions,
+          Clicks: r.clicks,
+          CTR: r.ctr,
+          CPC: r.cpc,
+          ACoS: r.acos,
+          TACoS: r.tacos,
+          ROAS: r.roas,
+        });
+      });
+      // YTD total row
+      if (summaryRows.length) {
+        const totals = summaryRows.reduce((acc, r) => {
+          acc.Sales += r.Sales;
+          acc.Units += r.Units;
+          acc.Sessions += r.Sessions;
+          acc['Refund Cost'] += r['Refund Cost'];
+          acc['Ad Spend'] += r['Ad Spend'];
+          acc['Ad Sales'] += r['Ad Sales'];
+          acc['Organic Sales'] += r['Organic Sales'];
+          acc.Impressions += r.Impressions;
+          acc.Clicks += r.Clicks;
+          return acc;
+        }, { Sales: 0, Units: 0, Sessions: 0, 'Refund Cost': 0, 'Ad Spend': 0, 'Ad Sales': 0, 'Organic Sales': 0, Impressions: 0, Clicks: 0 });
+        summaryRows.push({
+          Month: 'YTD TOTAL',
+          Sales: totals.Sales,
+          Units: totals.Units,
+          Sessions: totals.Sessions,
+          CVR: totals.Sessions > 0 ? totals.Units / totals.Sessions : 0,
+          'Refund Cost': totals['Refund Cost'],
+          'Ad Spend': totals['Ad Spend'],
+          'Ad Sales': totals['Ad Sales'],
+          'Organic Sales': totals['Organic Sales'],
+          Impressions: totals.Impressions,
+          Clicks: totals.Clicks,
+          CTR: totals.Impressions > 0 ? totals.Clicks / totals.Impressions : 0,
+          CPC: totals.Clicks > 0 ? totals['Ad Spend'] / totals.Clicks : 0,
+          ACoS: totals['Ad Sales'] > 0 ? totals['Ad Spend'] / totals['Ad Sales'] : 0,
+          TACoS: totals.Sales > 0 ? totals['Ad Spend'] / totals.Sales : 0,
+          ROAS: totals['Ad Spend'] > 0 ? totals['Ad Sales'] / totals['Ad Spend'] : 0,
+        });
+      }
+      const summarySheet = makeStyledSheet(summaryRows, {
+        currencyCols: ['Sales','Refund Cost','Ad Spend','Ad Sales','Organic Sales','CPC'],
+        pctCols: ['CVR','CTR','ACoS','TACoS'],
+        numCols: ['Units','Sessions','Impressions','Clicks'],
+        multCols: ['ROAS'],
+        boldRows: summaryRows.map((r, i) => r.Month === 'YTD TOTAL' ? i + 1 : null).filter(x => x),
+      });
+      XLSX.utils.book_append_sheet(wb, summarySheet, 'Dashboard Summary');
+
+      // ============ Tab 2 — Trends ============
+      const trendRows = summaryRows.filter(r => r.Month !== 'YTD TOTAL').map(r => ({
+        Month: r.Month,
+        Sales: r.Sales,
+        Units: r.Units,
+        Sessions: r.Sessions,
+        CVR: r.CVR,
+        'Refund Cost': r['Refund Cost'],
+        'Ad Spend': r['Ad Spend'],
+        'Ad Sales': r['Ad Sales'],
+        'Organic Sales': r['Organic Sales'],
+        ACoS: r.ACoS,
+        TACoS: r.TACoS,
+        ROAS: r.ROAS,
+      }));
+      const trendSheet = makeStyledSheet(trendRows, {
+        currencyCols: ['Sales','Refund Cost','Ad Spend','Ad Sales','Organic Sales'],
+        pctCols: ['CVR','ACoS','TACoS'],
+        numCols: ['Units','Sessions'],
+        multCols: ['ROAS'],
+      });
+      XLSX.utils.book_append_sheet(wb, trendSheet, 'Trends');
+
+      // ============ Tab 3 — By Product ============
+      const productRows = [];
+      MONTHS.forEach(month => {
+        state.catalog.forEach(c => {
+          const sbRow = state.sellerboard.find(r => r.asin === c.asin && r.month === month);
+          if (!sbRow || (sbRow.gross_sales === 0 && sbRow.units === 0)) return;
+          const sessions = sbRow.sessions || 0;
+          const units = sbRow.units || 0;
+          productRows.push({
+            Month: month,
+            'Internal SKU': c.internal_sku,
+            ASIN: c.asin,
+            'Product Name': c.product_name,
+            Category: c.category || '',
+            Units: units,
+            Sessions: sessions,
+            CVR: sessions > 0 ? units / sessions : 0,
+            Sales: +sbRow.gross_sales || 0,
+            'Refund Cost': Math.abs(+sbRow.refunds || 0),
+          });
+        });
+      });
+      const productSheet = makeStyledSheet(productRows, {
+        currencyCols: ['Sales','Refund Cost'],
+        pctCols: ['CVR'],
+        numCols: ['Units','Sessions'],
+      });
+      XLSX.utils.book_append_sheet(wb, productSheet, 'By Product');
+
+      // ============ Tab 4 — PPC Detail ============
+      const ppcRows = state.ppc
+        .slice()
+        .sort((a, b) => {
+          const mi = MONTHS.indexOf(a.month) - MONTHS.indexOf(b.month);
+          if (mi !== 0) return mi;
+          return (b.spend || 0) - (a.spend || 0);
+        })
+        .map(r => {
+          const impressions = r.impressions || 0;
+          const clicks = r.clicks || 0;
+          const spend = +r.spend || 0;
+          const sales = +r.sales || 0;
+          const orders = r.orders || 0;
+          return {
+            Month: r.month,
+            Campaign: r.campaign,
+            Type: r.ad_type || '',
+            Impressions: impressions,
+            Clicks: clicks,
+            CTR: impressions > 0 ? clicks / impressions : 0,
+            Spend: spend,
+            CPC: clicks > 0 ? spend / clicks : 0,
+            Orders: orders,
+            Sales: sales,
+            ACoS: sales > 0 ? spend / sales : 0,
+            ROAS: spend > 0 ? sales / spend : 0,
+          };
+        });
+      const ppcSheet = makeStyledSheet(ppcRows, {
+        currencyCols: ['Spend','CPC','Sales'],
+        pctCols: ['CTR','ACoS'],
+        numCols: ['Impressions','Clicks','Orders'],
+        multCols: ['ROAS'],
+      });
+      XLSX.utils.book_append_sheet(wb, ppcSheet, 'PPC Detail');
+
+      const today = new Date().toISOString().slice(0, 10);
+      const filename = `Chocxo_Amazon_KPIs_${today}.xlsx`;
+      XLSX.writeFile(wb, filename);
+
+      btn.innerHTML = '<span>✓</span><span class="hidden sm:inline">Downloaded</span>';
+      setTimeout(() => { btn.innerHTML = originalHTML; btn.disabled = false; }, 2000);
+    } catch (e) {
+      console.error('Export failed:', e);
+      alert('Export failed: ' + e.message);
+      btn.innerHTML = originalHTML;
+      btn.disabled = false;
+    }
+  }, 50);
+}
+
+function makeStyledSheet(rows, opts = {}) {
+  const ws = XLSX.utils.json_to_sheet(rows);
+  if (!rows.length) return ws;
+
+  const headers = Object.keys(rows[0]);
+  const range = XLSX.utils.decode_range(ws['!ref']);
+
+  ws['!cols'] = headers.map(h => {
+    let maxLen = h.length;
+    for (let i = 0; i < Math.min(rows.length, 50); i++) {
+      const v = rows[i][h];
+      const s = (v == null) ? '' : (typeof v === 'number' ? v.toFixed(2) : String(v));
+      if (s.length > maxLen) maxLen = s.length;
+    }
+    return { wch: Math.min(Math.max(maxLen + 2, 10), 50) };
+  });
+
+  // Header row — bold only (no fill colors per spec)
+  const headerStyle = {
+    font: { bold: true },
+    alignment: { horizontal: 'left', vertical: 'center' },
+  };
+  for (let c = range.s.c; c <= range.e.c; c++) {
+    const addr = XLSX.utils.encode_cell({ r: 0, c });
+    if (ws[addr]) ws[addr].s = headerStyle;
+  }
+
+  // Number formats
+  const fmtMap = {};
+  (opts.currencyCols || []).forEach(col => { fmtMap[col] = '"$"#,##0.00;[Red]("$"#,##0.00)'; });
+  (opts.pctCols || []).forEach(col => { fmtMap[col] = '0.0%'; });
+  (opts.numCols || []).forEach(col => { fmtMap[col] = '#,##0'; });
+  (opts.multCols || []).forEach(col => { fmtMap[col] = '0.00"x"'; });
+
+  for (let r = 1; r <= range.e.r; r++) {
+    for (let c = range.s.c; c <= range.e.c; c++) {
+      const header = headers[c];
+      const fmt = fmtMap[header];
+      const addr = XLSX.utils.encode_cell({ r, c });
+      if (!ws[addr]) continue;
+      if (fmt) {
+        ws[addr].s = ws[addr].s || {};
+        ws[addr].z = fmt;
+      }
+      if (opts.boldRows && opts.boldRows.includes(r)) {
+        ws[addr].s = { ...(ws[addr].s || {}), font: { bold: true } };
+      }
+    }
+  }
+
+  return ws;
+}
+
+// ============================================================
+// ROUTING
+// ============================================================
 function showPage(path) {
   const dashSections = document.querySelectorAll('main > section');
   const trendsPage   = document.getElementById('trends-page');
@@ -499,27 +730,15 @@ function showPage(path) {
   productsPage.classList.add('hidden');
   ppcPage.classList.add('hidden');
 
-  if (path === '/trends') {
-    trendsPage.classList.remove('hidden');
-    renderTrends();
-  } else if (path === '/products') {
-    productsPage.classList.remove('hidden');
-    renderProducts();
-  } else if (path === '/ppc') {
-    ppcPage.classList.remove('hidden');
-    renderPpc();
-  } else {
-    dashSections.forEach(s => s.classList.remove('hidden'));
-    renderDashboard();
-  }
+  if (path === '/trends') { trendsPage.classList.remove('hidden'); renderTrends(); }
+  else if (path === '/products') { productsPage.classList.remove('hidden'); renderProducts(); }
+  else if (path === '/ppc') { ppcPage.classList.remove('hidden'); renderPpc(); }
+  else { dashSections.forEach(s => s.classList.remove('hidden')); renderDashboard(); }
 
   document.querySelectorAll('nav a').forEach(a => {
     const href = a.getAttribute('href');
-    if (href === path || (path === '/' && href === '/')) {
-      a.classList.add('bg-white/10');
-    } else {
-      a.classList.remove('bg-white/10');
-    }
+    if (href === path || (path === '/' && href === '/')) a.classList.add('bg-white/10');
+    else a.classList.remove('bg-white/10');
   });
 }
 
@@ -530,6 +749,7 @@ async function init() {
   document.getElementById('data-status').textContent = '';
   setupMonthSelector(() => showPage(window.location.pathname));
   setupTableInteractions();
+  setupExportButton();
   setupRouter(showPage);
 }
 
