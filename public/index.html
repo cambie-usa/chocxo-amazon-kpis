@@ -1,3 +1,4 @@
+
 <!doctype html>
 <html lang="en">
 <head>
@@ -7,7 +8,6 @@
   <link rel="preconnect" href="https://cdn.jsdelivr.net">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-  <!-- xlsx-js-style: SheetJS fork with style support for export -->
   <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
@@ -57,14 +57,15 @@
 
   <header class="bg-cocoa text-white">
     <div class="max-w-7xl mx-auto px-6 pb-6">
-      <p class="text-white/70 text-sm">Vendor-facing dashboard · Chocxo · 10 SKUs · Retail Chocolate</p>
+      <p class="text-white/70 text-sm">Vendor-facing dashboard · Chocxo · Retail Chocolate</p>
     </div>
   </header>
 
   <div class="max-w-7xl mx-auto px-6 mt-6 flex items-center gap-4 flex-wrap">
-    <label class="text-sm font-semibold text-navy">Reporting Month:</label>
-    <select id="month-select" class="border border-slate-300 rounded px-3 py-2 bg-white text-sm font-medium focus:outline-none focus:ring-2 focus:ring-cocoa">
-    </select>
+    <label class="text-sm font-semibold text-navy">Year:</label>
+    <select id="year-select" class="border border-slate-300 rounded px-3 py-2 bg-white text-sm font-medium focus:outline-none focus:ring-2 focus:ring-cocoa"></select>
+    <label class="text-sm font-semibold text-navy ml-2">Month:</label>
+    <select id="month-select" class="border border-slate-300 rounded px-3 py-2 bg-white text-sm font-medium focus:outline-none focus:ring-2 focus:ring-cocoa"></select>
     <span id="data-status" class="text-xs text-slate-500"></span>
   </div>
 
@@ -98,6 +99,8 @@
         <div class="bg-mid/30">
           <div class="bg-navy text-white py-2 text-center text-xs font-bold uppercase tracking-wide">Month-over-Month</div>
           <div class="p-5 grid grid-cols-1 gap-y-3 text-sm" id="mom-panel"></div>
+          <div class="bg-cocoa-mid text-white py-2 text-center text-xs font-bold uppercase tracking-wide">Year-over-Year</div>
+          <div class="p-5 grid grid-cols-1 gap-y-3 text-sm" id="yoy-panel"></div>
         </div>
       </div>
     </section>
@@ -125,7 +128,7 @@
     </section>
 
     <section class="bg-white rounded-lg shadow-sm p-5 mb-6">
-      <h2 class="text-lg font-bold text-navy mb-4">Monthly Sales Trend (YTD)</h2>
+      <h2 class="text-lg font-bold text-navy mb-4">Monthly Sales Trend (<span id="chart-year-label">—</span>)</h2>
       <div class="h-80">
         <canvas id="sales-chart"></canvas>
       </div>
@@ -135,7 +138,7 @@
 
   <div id="trends-page" class="hidden max-w-7xl mx-auto px-6 pb-12">
     <h2 class="text-2xl font-bold text-navy mb-4 mt-6">Trends</h2>
-    <p class="text-sm text-slate-600 mb-4">Month-by-month performance. Organic Sales = Total Sales minus Ad Sales.</p>
+    <p class="text-sm text-slate-600 mb-4">Month-by-month performance across all years. Organic Sales = Total Sales minus Ad Sales.</p>
     <div class="bg-white rounded-lg shadow-sm overflow-x-auto">
       <table class="w-full text-sm">
         <thead class="bg-cocoa text-white text-xs uppercase">
@@ -190,7 +193,7 @@
       <h2 class="text-2xl font-bold text-navy">PPC Detail</h2>
       <div id="ppc-month-pill" class="px-3 py-1 bg-cocoa text-white text-sm rounded font-medium"></div>
     </div>
-    <p class="text-sm text-slate-600 mb-4">Campaign-level metrics. ACoS in red (&gt;25%) or green (&lt;15%).</p>
+    <p class="text-sm text-slate-600 mb-4">Campaign-level metrics. ACoS in red (&gt;25%) or green (&lt;15%). Note: pre-2026 months only have total ad spend, not campaign detail.</p>
 
     <div class="bg-white rounded-lg shadow-sm p-3 mb-4 flex items-center gap-3 flex-wrap">
       <label class="text-xs font-bold text-navy uppercase tracking-wide">Sort by:</label>
@@ -206,6 +209,10 @@
         <option value="campaign-asc">Campaign (A → Z)</option>
       </select>
       <span class="text-xs text-slate-500 ml-auto hidden sm:inline">Tip: click any column header to sort</span>
+    </div>
+
+    <div id="ppc-empty-notice" class="hidden bg-mid/40 border border-cocoa-mid/30 rounded p-4 mb-4 text-sm text-navy">
+      <strong>No campaign-level PPC data for this month.</strong> Only total ad spend is available — see the Dashboard tab for aggregated ad metrics.
     </div>
 
     <div class="bg-white rounded-lg shadow-sm overflow-x-auto">
