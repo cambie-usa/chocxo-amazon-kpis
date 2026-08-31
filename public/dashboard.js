@@ -1,5 +1,5 @@
 // ============================================================
-// dashboard.js — Chocxo single-brand rendering + Excel export
+// dashboard.js — Chocxo dashboard with YoY + total_ad_spend fallback
 // ============================================================
 
 let salesChart = null;
@@ -11,12 +11,15 @@ const tableState = {
 
 function renderDashboard() {
   const month = state.selectedMonth;
-  const cur = rollupForMonth(month);
-  const prev = priorMonth(month);
-  const prior = prev ? rollupForMonth(prev) : null;
+  const year = state.selectedYear;
+  const cur = rollupForMonth(month, year);
+  const prev = priorMonth(month, year);
+  const prior = hasDataFor(prev.month, prev.year) ? rollupForMonth(prev.month, prev.year) : null;
+  const yoyPrev = priorYearSameMonth(month, year);
+  const yoy = hasDataFor(yoyPrev.month, yoyPrev.year) ? rollupForMonth(yoyPrev.month, yoyPrev.year) : null;
 
   document.getElementById('kpi-total-sales').textContent = fmtCurrency(cur.sales);
-  document.getElementById('kpi-total-ad-spend').textContent = fmtCurrency(cur.adSpend);
+  document.getElementById('kpi-total-ad-spend').textContent = cur.hasAnyAdSpend ? fmtCurrency(cur.adSpend) : '—';
   document.getElementById('kpi-total-units').textContent = fmtNumber(cur.units);
 
   const momEl = document.getElementById('kpi-mom-sales');
@@ -29,49 +32,67 @@ function renderDashboard() {
     momEl.className = 'text-3xl font-bold text-navy mt-2';
   }
 
+  // KPI grid — show ad metrics only when data present
   const kpiGrid = document.getElementById('kpi-grid');
   kpiGrid.innerHTML = [
     kpiCell('Gross Sales',   fmtCurrency(cur.sales)),
-    kpiCell('Ad Spend',      fmtCurrency(cur.adSpend)),
-    kpiCell('Impressions',   fmtNumber(cur.impressions)),
-    kpiCell('CTR',           fmtPct(cur.ctr)),
+    kpiCell('Ad Spend',      cur.hasAnyAdSpend ? fmtCurrency(cur.adSpend) : '—'),
+    kpiCell('Impressions',   cur.hasPpcDetail ? fmtNumber(cur.impressions) : '—'),
+    kpiCell('CTR',           cur.hasPpcDetail ? fmtPct(cur.ctr) : '—'),
     kpiCell('Units',         fmtNumber(cur.units)),
-    kpiCell('Ad Sales',      fmtCurrency(cur.adSales)),
-    kpiCell('Clicks',        fmtNumber(cur.clicks)),
-    kpiCell('CPC',           fmtCurrency2(cur.cpc)),
+    kpiCell('Ad Sales',      cur.hasPpcDetail ? fmtCurrency(cur.adSales) : '—'),
+    kpiCell('Clicks',        cur.hasPpcDetail ? fmtNumber(cur.clicks) : '—'),
+    kpiCell('CPC',           cur.hasPpcDetail ? fmtCurrency2(cur.cpc) : '—'),
     kpiCell('Sessions',      fmtNumber(cur.sessions)),
-    kpiCell('ACoS',          fmtPct(cur.acos)),
-    kpiCell('Ad Orders',     fmtNumber(cur.adOrders)),
-    kpiCell('ROAS',          fmtMult(cur.roas)),
+    kpiCell('ACoS',          cur.acos != null ? fmtPct(cur.acos) : '—'),
+    kpiCell('Ad Orders',     cur.hasPpcDetail ? fmtNumber(cur.adOrders) : '—'),
+    kpiCell('ROAS',          cur.roas != null ? fmtMult(cur.roas) : '—'),
     kpiCell('CVR',           fmtPct(cur.cvr)),
-    kpiCell('TACoS',         fmtPct(cur.tacos)),
-    kpiCell('Organic Sales', fmtCurrency(cur.organicSales)),
+    kpiCell('TACoS',         cur.hasAnyAdSpend ? fmtPct(cur.tacos) : '—'),
+    kpiCell('Organic Sales', cur.organicSales != null ? fmtCurrency(cur.organicSales) : '—'),
     kpiCell('Refund Cost',   fmtCurrency(cur.refundCost)),
   ].join('');
 
+  // MoM panel (vs previous month)
   const momPanel = document.getElementById('mom-panel');
   if (!prior) {
     momPanel.innerHTML = `<div class="text-xs text-slate-500 italic">No prior month data</div>`;
   } else {
     momPanel.innerHTML = [
+      `<div class="text-xs text-slate-500 mb-1">vs. ${prev.month} ${prev.year}</div>`,
       deltaCell('Δ Sales',         cur.sales        - prior.sales,         fmtCurrency),
       deltaPctCell('Δ Sales %',    prior.sales > 0 ? (cur.sales - prior.sales) / prior.sales : null),
       deltaCell('Δ Units',         cur.units        - prior.units,         fmtNumber),
       deltaCell('Δ Sessions',      cur.sessions     - prior.sessions,      fmtNumber),
       deltaPctPointsCell('Δ CVR',  cur.cvr          - prior.cvr),
-      deltaCell('Δ Organic Sales', cur.organicSales - prior.organicSales,  fmtCurrency),
-      deltaCell('Δ Ad Sales',      cur.adSales      - prior.adSales,       fmtCurrency),
-      deltaCell('Δ Ad Spend',      cur.adSpend      - prior.adSpend,       fmtCurrency),
+      deltaCell('Δ Ad Spend',      (cur.hasAnyAdSpend && prior.hasAnyAdSpend) ? (cur.adSpend - prior.adSpend) : null, fmtCurrency),
     ].join('');
   }
 
-  document.getElementById('top-skus-month-pill').textContent = month;
-  renderTopSkus(month);
-  renderSalesChart();
+  // YoY panel (vs same month, prior year)
+  const yoyPanel = document.getElementById('yoy-panel');
+  if (!yoy) {
+    yoyPanel.innerHTML = `<div class="text-xs text-slate-500 italic">No ${yoyPrev.year} data for ${yoyPrev.month}</div>`;
+  } else {
+    yoyPanel.innerHTML = [
+      `<div class="text-xs text-slate-500 mb-1">vs. ${yoyPrev.month} ${yoyPrev.year}</div>`,
+      deltaCell('Δ Sales',         cur.sales        - yoy.sales,         fmtCurrency),
+      deltaPctCell('Δ Sales %',    yoy.sales > 0 ? (cur.sales - yoy.sales) / yoy.sales : null),
+      deltaCell('Δ Units',         cur.units        - yoy.units,         fmtNumber),
+      deltaCell('Δ Sessions',      cur.sessions     - yoy.sessions,      fmtNumber),
+      deltaPctPointsCell('Δ CVR',  cur.cvr          - yoy.cvr),
+      deltaCell('Δ Ad Spend',      (cur.hasAnyAdSpend && yoy.hasAnyAdSpend) ? (cur.adSpend - yoy.adSpend) : null, fmtCurrency),
+    ].join('');
+  }
 
-  const dataMonths = new Set(state.sellerboard.map(r => r.month));
+  document.getElementById('top-skus-month-pill').textContent = `${month} ${year}`;
+  document.getElementById('chart-year-label').textContent = year;
+  renderTopSkus(month, year);
+  renderSalesChart(year);
+
+  const dataMonths = new Set(state.sellerboard.map(r => `${r.month} ${r.year}`));
   document.getElementById('footer-updated').textContent =
-    `${dataMonths.size} month(s) of data · ${state.catalog.length} SKUs`;
+    `${dataMonths.size} month(s) of data across ${state.availableYears.length} year(s) · ${state.catalog.length} SKUs`;
 }
 
 function kpiCell(label, value) {
@@ -117,16 +138,15 @@ function deltaPctPointsCell(label, value) {
   `;
 }
 
-function renderTopSkus(month) {
+function renderTopSkus(month, year) {
   const body = document.getElementById('top-skus-body');
   if (!body) return;
   body.innerHTML = '';
 
   const rows = state.catalog.map(c => {
-    const sbRow = state.sellerboard.find(r => r.asin === c.asin && r.month === month);
+    const sbRow = state.sellerboard.find(r => r.asin === c.asin && r.month === month && r.year === year);
     return {
-      sku: c.internal_sku,
-      name: c.product_name,
+      sku: c.internal_sku, name: c.product_name,
       units: sbRow?.units || 0,
       sessions: sbRow?.sessions || 0,
       sales: +sbRow?.gross_sales || 0,
@@ -154,16 +174,20 @@ function renderTopSkus(month) {
   });
 }
 
-function renderSalesChart() {
+function renderSalesChart(year) {
   const canvas = document.getElementById('sales-chart');
   if (!canvas) return;
 
   const salesData = MONTHS.map(m =>
-    state.sellerboard.filter(r => r.month === m).reduce((a, r) => a + (+r.gross_sales || 0), 0)
+    state.sellerboard.filter(r => r.month === m && r.year === year).reduce((a, r) => a + (+r.gross_sales || 0), 0)
   );
-  const adSpendData = MONTHS.map(m =>
-    state.ppc.filter(r => r.month === m).reduce((a, r) => a + (+r.spend || 0), 0)
-  );
+  // Ad spend: prefer PPC, fall back to sellerboard total_ad_spend
+  const adSpendData = MONTHS.map(m => {
+    const ppc = state.ppc.filter(r => r.month === m && r.year === year);
+    if (ppc.length > 0) return ppc.reduce((a, r) => a + (+r.spend || 0), 0);
+    return state.sellerboard.filter(r => r.month === m && r.year === year)
+      .reduce((a, r) => a + (+r.total_ad_spend || 0), 0);
+  });
 
   if (salesChart) salesChart.destroy();
   salesChart = new Chart(canvas.getContext('2d'), {
@@ -187,7 +211,7 @@ function renderSalesChart() {
 }
 
 // ============================================================
-// TRENDS
+// TRENDS — now shows all years
 // ============================================================
 function renderTrends() {
   const headRow = document.getElementById('trends-head');
@@ -195,6 +219,7 @@ function renderTrends() {
   if (!headRow || !body) return;
 
   headRow.innerHTML = `
+    <th class="px-3 py-2 text-left">Year</th>
     <th class="px-3 py-2 text-left">Month</th>
     <th class="px-3 py-2 text-right">Sales</th>
     <th class="px-3 py-2 text-right">Units</th>
@@ -207,29 +232,45 @@ function renderTrends() {
     <th class="px-3 py-2 text-right">ACoS</th>
     <th class="px-3 py-2 text-right">TACoS</th>
     <th class="px-3 py-2 text-right">ROAS</th>
+    <th class="px-3 py-2 text-right">YoY Sales</th>
   `;
 
   body.innerHTML = '';
-  MONTHS.forEach((month, mi) => {
-    const r = rollupForMonth(month);
-    if (r.sales === 0) return;
-    const tr = document.createElement('tr');
-    tr.className = mi % 2 === 0 ? 'bg-cream' : 'bg-white';
-    tr.innerHTML = `
-      <td class="px-3 py-2 font-bold text-cocoa">${month}</td>
-      <td class="px-3 py-2 text-right font-semibold">${fmtCurrency(r.sales)}</td>
-      <td class="px-3 py-2 text-right">${fmtNumber(r.units)}</td>
-      <td class="px-3 py-2 text-right">${fmtNumber(r.sessions)}</td>
-      <td class="px-3 py-2 text-right">${fmtPct(r.cvr)}</td>
-      <td class="px-3 py-2 text-right">${fmtCurrency(r.refundCost)}</td>
-      <td class="px-3 py-2 text-right">${fmtCurrency(r.adSpend)}</td>
-      <td class="px-3 py-2 text-right">${fmtCurrency(r.adSales)}</td>
-      <td class="px-3 py-2 text-right font-semibold">${fmtCurrency(r.organicSales)}</td>
-      <td class="px-3 py-2 text-right">${fmtPct(r.acos)}</td>
-      <td class="px-3 py-2 text-right">${fmtPct(r.tacos)}</td>
-      <td class="px-3 py-2 text-right">${fmtMult(r.roas)}</td>
-    `;
-    body.appendChild(tr);
+  let i = 0;
+  state.availableYears.forEach(year => {
+    MONTHS.forEach(month => {
+      const r = rollupForMonth(month, year);
+      if (r.sales === 0 && r.units === 0) return;
+      const prevYear = year - 1;
+      const priorYear = hasDataFor(month, prevYear) ? rollupForMonth(month, prevYear) : null;
+      let yoyCell = '<span class="text-slate-400">—</span>';
+      if (priorYear && priorYear.sales > 0) {
+        const pct = (r.sales - priorYear.sales) / priorYear.sales;
+        const color = pct > 0 ? 'text-good' : pct < 0 ? 'text-bad' : 'text-slate-500';
+        const sign = pct > 0 ? '+' : '';
+        yoyCell = `<span class="font-bold ${color}">${sign}${(pct * 100).toFixed(1)}%</span>`;
+      }
+      const tr = document.createElement('tr');
+      tr.className = i % 2 === 0 ? 'bg-cream' : 'bg-white';
+      tr.innerHTML = `
+        <td class="px-3 py-2 font-semibold">${year}</td>
+        <td class="px-3 py-2 font-bold text-cocoa">${month}</td>
+        <td class="px-3 py-2 text-right font-semibold">${fmtCurrency(r.sales)}</td>
+        <td class="px-3 py-2 text-right">${fmtNumber(r.units)}</td>
+        <td class="px-3 py-2 text-right">${fmtNumber(r.sessions)}</td>
+        <td class="px-3 py-2 text-right">${fmtPct(r.cvr)}</td>
+        <td class="px-3 py-2 text-right">${fmtCurrency(r.refundCost)}</td>
+        <td class="px-3 py-2 text-right">${r.hasAnyAdSpend ? fmtCurrency(r.adSpend) : '—'}</td>
+        <td class="px-3 py-2 text-right">${r.hasPpcDetail ? fmtCurrency(r.adSales) : '—'}</td>
+        <td class="px-3 py-2 text-right font-semibold">${r.organicSales != null ? fmtCurrency(r.organicSales) : '—'}</td>
+        <td class="px-3 py-2 text-right">${r.acos != null ? fmtPct(r.acos) : '—'}</td>
+        <td class="px-3 py-2 text-right">${r.hasAnyAdSpend ? fmtPct(r.tacos) : '—'}</td>
+        <td class="px-3 py-2 text-right">${r.roas != null ? fmtMult(r.roas) : '—'}</td>
+        <td class="px-3 py-2 text-right">${yoyCell}</td>
+      `;
+      body.appendChild(tr);
+      i++;
+    });
   });
 }
 
@@ -238,13 +279,14 @@ function renderTrends() {
 // ============================================================
 function renderProducts() {
   const month = state.selectedMonth;
-  document.getElementById('products-month-pill').textContent = month;
+  const year = state.selectedYear;
+  document.getElementById('products-month-pill').textContent = `${month} ${year}`;
   const body = document.getElementById('products-body');
   if (!body) return;
   body.innerHTML = '';
 
   let rows = state.catalog.map(c => {
-    const sbRow = state.sellerboard.find(r => r.asin === c.asin && r.month === month);
+    const sbRow = state.sellerboard.find(r => r.asin === c.asin && r.month === month && r.year === year);
     return {
       sku: c.internal_sku, asin: c.asin, name: c.product_name,
       units: sbRow?.units || 0,
@@ -313,12 +355,13 @@ function sortProductRows(rows, sortKey) {
 // ============================================================
 function renderPpc() {
   const month = state.selectedMonth;
-  document.getElementById('ppc-month-pill').textContent = month;
+  const year = state.selectedYear;
+  document.getElementById('ppc-month-pill').textContent = `${month} ${year}`;
   const body = document.getElementById('ppc-body');
   if (!body) return;
   body.innerHTML = '';
 
-  let rows = state.ppc.filter(r => r.month === month).map(r => {
+  let rows = state.ppc.filter(r => r.month === month && r.year === year).map(r => {
     const impressions = r.impressions || 0;
     const clicks = r.clicks || 0;
     const spend = +r.spend || 0;
@@ -333,6 +376,14 @@ function renderPpc() {
       roas: spend > 0 ? sales / spend : 0,
     };
   });
+
+  // Empty-state notice when this month has no campaign detail
+  const emptyNotice = document.getElementById('ppc-empty-notice');
+  if (rows.length === 0) {
+    emptyNotice.classList.remove('hidden');
+  } else {
+    emptyNotice.classList.add('hidden');
+  }
 
   rows = sortPpcRows(rows, tableState.ppc.sort);
   updateSortArrows('ppc-head', tableState.ppc.sort);
@@ -359,6 +410,8 @@ function renderPpc() {
     `;
     body.appendChild(tr);
   });
+
+  if (rows.length === 0) return;
 
   const totCtr = totImpr > 0 ? totClicks / totImpr : 0;
   const totCpc = totClicks > 0 ? totSpend / totClicks : 0;
@@ -469,7 +522,7 @@ function setupTableInteractions() {
 }
 
 // ============================================================
-// EXCEL EXPORT
+// EXCEL EXPORT — now includes year in all data
 // ============================================================
 function setupExportButton() {
   const btn = document.getElementById('export-btn');
@@ -492,122 +545,105 @@ function exportToExcel() {
     try {
       const wb = XLSX.utils.book_new();
 
-      // ============ Tab 1 — Dashboard Summary ============
-      // One row per month (Chocxo is single-brand, so no brand split)
+      // ============ Tab 1 — Dashboard Summary (all years, all months) ============
       const summaryRows = [];
-      MONTHS.forEach(month => {
-        const r = rollupForMonth(month);
-        if (r.sales === 0) return;
-        summaryRows.push({
-          Month: month,
-          Sales: r.sales,
-          Units: r.units,
-          Sessions: r.sessions,
-          CVR: r.cvr,
-          'Refund Cost': r.refundCost,
-          'Ad Spend': r.adSpend,
-          'Ad Sales': r.adSales,
-          'Organic Sales': r.organicSales,
-          Impressions: r.impressions,
-          Clicks: r.clicks,
-          CTR: r.ctr,
-          CPC: r.cpc,
-          ACoS: r.acos,
-          TACoS: r.tacos,
-          ROAS: r.roas,
+      state.availableYears.forEach(year => {
+        MONTHS.forEach(month => {
+          const r = rollupForMonth(month, year);
+          if (r.sales === 0 && r.units === 0) return;
+          summaryRows.push({
+            Year: year,
+            Month: month,
+            Sales: r.sales,
+            Units: r.units,
+            Sessions: r.sessions,
+            CVR: r.cvr,
+            'Refund Cost': r.refundCost,
+            'Ad Spend': r.hasAnyAdSpend ? r.adSpend : null,
+            'Ad Sales': r.hasPpcDetail ? r.adSales : null,
+            'Organic Sales': r.organicSales,
+            Impressions: r.hasPpcDetail ? r.impressions : null,
+            Clicks: r.hasPpcDetail ? r.clicks : null,
+            CTR: r.hasPpcDetail ? r.ctr : null,
+            CPC: r.hasPpcDetail ? r.cpc : null,
+            ACoS: r.acos,
+            TACoS: r.hasAnyAdSpend ? r.tacos : null,
+            ROAS: r.roas,
+          });
         });
       });
-      // YTD total row
-      if (summaryRows.length) {
-        const totals = summaryRows.reduce((acc, r) => {
-          acc.Sales += r.Sales;
-          acc.Units += r.Units;
-          acc.Sessions += r.Sessions;
-          acc['Refund Cost'] += r['Refund Cost'];
-          acc['Ad Spend'] += r['Ad Spend'];
-          acc['Ad Sales'] += r['Ad Sales'];
-          acc['Organic Sales'] += r['Organic Sales'];
-          acc.Impressions += r.Impressions;
-          acc.Clicks += r.Clicks;
-          return acc;
-        }, { Sales: 0, Units: 0, Sessions: 0, 'Refund Cost': 0, 'Ad Spend': 0, 'Ad Sales': 0, 'Organic Sales': 0, Impressions: 0, Clicks: 0 });
-        summaryRows.push({
-          Month: 'YTD TOTAL',
-          Sales: totals.Sales,
-          Units: totals.Units,
-          Sessions: totals.Sessions,
-          CVR: totals.Sessions > 0 ? totals.Units / totals.Sessions : 0,
-          'Refund Cost': totals['Refund Cost'],
-          'Ad Spend': totals['Ad Spend'],
-          'Ad Sales': totals['Ad Sales'],
-          'Organic Sales': totals['Organic Sales'],
-          Impressions: totals.Impressions,
-          Clicks: totals.Clicks,
-          CTR: totals.Impressions > 0 ? totals.Clicks / totals.Impressions : 0,
-          CPC: totals.Clicks > 0 ? totals['Ad Spend'] / totals.Clicks : 0,
-          ACoS: totals['Ad Sales'] > 0 ? totals['Ad Spend'] / totals['Ad Sales'] : 0,
-          TACoS: totals.Sales > 0 ? totals['Ad Spend'] / totals.Sales : 0,
-          ROAS: totals['Ad Spend'] > 0 ? totals['Ad Sales'] / totals['Ad Spend'] : 0,
-        });
-      }
       const summarySheet = makeStyledSheet(summaryRows, {
         currencyCols: ['Sales','Refund Cost','Ad Spend','Ad Sales','Organic Sales','CPC'],
         pctCols: ['CVR','CTR','ACoS','TACoS'],
-        numCols: ['Units','Sessions','Impressions','Clicks'],
+        numCols: ['Units','Sessions','Impressions','Clicks','Year'],
         multCols: ['ROAS'],
-        boldRows: summaryRows.map((r, i) => r.Month === 'YTD TOTAL' ? i + 1 : null).filter(x => x),
       });
       XLSX.utils.book_append_sheet(wb, summarySheet, 'Dashboard Summary');
 
-      // ============ Tab 2 — Trends ============
-      const trendRows = summaryRows.filter(r => r.Month !== 'YTD TOTAL').map(r => ({
-        Month: r.Month,
-        Sales: r.Sales,
-        Units: r.Units,
-        Sessions: r.Sessions,
-        CVR: r.CVR,
-        'Refund Cost': r['Refund Cost'],
-        'Ad Spend': r['Ad Spend'],
-        'Ad Sales': r['Ad Sales'],
-        'Organic Sales': r['Organic Sales'],
-        ACoS: r.ACoS,
-        TACoS: r.TACoS,
-        ROAS: r.ROAS,
-      }));
+      // ============ Tab 2 — Trends (with YoY column) ============
+      const trendRows = [];
+      state.availableYears.forEach(year => {
+        MONTHS.forEach(month => {
+          const r = rollupForMonth(month, year);
+          if (r.sales === 0 && r.units === 0) return;
+          const priorYear = year - 1;
+          const priorR = hasDataFor(month, priorYear) ? rollupForMonth(month, priorYear) : null;
+          const yoyPct = (priorR && priorR.sales > 0) ? (r.sales - priorR.sales) / priorR.sales : null;
+          trendRows.push({
+            Year: year,
+            Month: month,
+            Sales: r.sales,
+            Units: r.units,
+            Sessions: r.sessions,
+            CVR: r.cvr,
+            'Refund Cost': r.refundCost,
+            'Ad Spend': r.hasAnyAdSpend ? r.adSpend : null,
+            'Ad Sales': r.hasPpcDetail ? r.adSales : null,
+            'Organic Sales': r.organicSales,
+            ACoS: r.acos,
+            TACoS: r.hasAnyAdSpend ? r.tacos : null,
+            ROAS: r.roas,
+            'YoY Sales %': yoyPct,
+          });
+        });
+      });
       const trendSheet = makeStyledSheet(trendRows, {
         currencyCols: ['Sales','Refund Cost','Ad Spend','Ad Sales','Organic Sales'],
-        pctCols: ['CVR','ACoS','TACoS'],
-        numCols: ['Units','Sessions'],
+        pctCols: ['CVR','ACoS','TACoS','YoY Sales %'],
+        numCols: ['Units','Sessions','Year'],
         multCols: ['ROAS'],
       });
       XLSX.utils.book_append_sheet(wb, trendSheet, 'Trends');
 
       // ============ Tab 3 — By Product ============
       const productRows = [];
-      MONTHS.forEach(month => {
-        state.catalog.forEach(c => {
-          const sbRow = state.sellerboard.find(r => r.asin === c.asin && r.month === month);
-          if (!sbRow || (sbRow.gross_sales === 0 && sbRow.units === 0)) return;
-          const sessions = sbRow.sessions || 0;
-          const units = sbRow.units || 0;
-          productRows.push({
-            Month: month,
-            'Internal SKU': c.internal_sku,
-            ASIN: c.asin,
-            'Product Name': c.product_name,
-            Category: c.category || '',
-            Units: units,
-            Sessions: sessions,
-            CVR: sessions > 0 ? units / sessions : 0,
-            Sales: +sbRow.gross_sales || 0,
-            'Refund Cost': Math.abs(+sbRow.refunds || 0),
+      state.availableYears.forEach(year => {
+        MONTHS.forEach(month => {
+          state.catalog.forEach(c => {
+            const sbRow = state.sellerboard.find(r => r.asin === c.asin && r.month === month && r.year === year);
+            if (!sbRow || (sbRow.gross_sales === 0 && sbRow.units === 0)) return;
+            const sessions = sbRow.sessions || 0;
+            const units = sbRow.units || 0;
+            productRows.push({
+              Year: year,
+              Month: month,
+              'Internal SKU': c.internal_sku,
+              ASIN: c.asin,
+              'Product Name': c.product_name,
+              Category: c.category || '',
+              Units: units,
+              Sessions: sessions,
+              CVR: sessions > 0 ? units / sessions : 0,
+              Sales: +sbRow.gross_sales || 0,
+              'Refund Cost': Math.abs(+sbRow.refunds || 0),
+            });
           });
         });
       });
       const productSheet = makeStyledSheet(productRows, {
         currencyCols: ['Sales','Refund Cost'],
         pctCols: ['CVR'],
-        numCols: ['Units','Sessions'],
+        numCols: ['Units','Sessions','Year'],
       });
       XLSX.utils.book_append_sheet(wb, productSheet, 'By Product');
 
@@ -615,6 +651,7 @@ function exportToExcel() {
       const ppcRows = state.ppc
         .slice()
         .sort((a, b) => {
+          if (a.year !== b.year) return a.year - b.year;
           const mi = MONTHS.indexOf(a.month) - MONTHS.indexOf(b.month);
           if (mi !== 0) return mi;
           return (b.spend || 0) - (a.spend || 0);
@@ -626,6 +663,7 @@ function exportToExcel() {
           const sales = +r.sales || 0;
           const orders = r.orders || 0;
           return {
+            Year: r.year,
             Month: r.month,
             Campaign: r.campaign,
             Type: r.ad_type || '',
@@ -643,7 +681,7 @@ function exportToExcel() {
       const ppcSheet = makeStyledSheet(ppcRows, {
         currencyCols: ['Spend','CPC','Sales'],
         pctCols: ['CTR','ACoS'],
-        numCols: ['Impressions','Clicks','Orders'],
+        numCols: ['Impressions','Clicks','Orders','Year'],
         multCols: ['ROAS'],
       });
       XLSX.utils.book_append_sheet(wb, ppcSheet, 'PPC Detail');
@@ -680,17 +718,12 @@ function makeStyledSheet(rows, opts = {}) {
     return { wch: Math.min(Math.max(maxLen + 2, 10), 50) };
   });
 
-  // Header row — bold only (no fill colors per spec)
-  const headerStyle = {
-    font: { bold: true },
-    alignment: { horizontal: 'left', vertical: 'center' },
-  };
+  const headerStyle = { font: { bold: true }, alignment: { horizontal: 'left', vertical: 'center' } };
   for (let c = range.s.c; c <= range.e.c; c++) {
     const addr = XLSX.utils.encode_cell({ r: 0, c });
     if (ws[addr]) ws[addr].s = headerStyle;
   }
 
-  // Number formats
   const fmtMap = {};
   (opts.currencyCols || []).forEach(col => { fmtMap[col] = '"$"#,##0.00;[Red]("$"#,##0.00)'; });
   (opts.pctCols || []).forEach(col => { fmtMap[col] = '0.0%'; });
@@ -707,9 +740,6 @@ function makeStyledSheet(rows, opts = {}) {
         ws[addr].s = ws[addr].s || {};
         ws[addr].z = fmt;
       }
-      if (opts.boldRows && opts.boldRows.includes(r)) {
-        ws[addr].s = { ...(ws[addr].s || {}), font: { bold: true } };
-      }
     }
   }
 
@@ -717,7 +747,7 @@ function makeStyledSheet(rows, opts = {}) {
 }
 
 // ============================================================
-// ROUTING
+// ROUTING & INIT
 // ============================================================
 function showPage(path) {
   const dashSections = document.querySelectorAll('main > section');
@@ -747,7 +777,7 @@ async function init() {
   await refreshAuthUI();
   await loadAllData();
   document.getElementById('data-status').textContent = '';
-  setupMonthSelector(() => showPage(window.location.pathname));
+  setupSelectors(() => showPage(window.location.pathname));
   setupTableInteractions();
   setupExportButton();
   setupRouter(showPage);
