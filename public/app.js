@@ -1,5 +1,5 @@
 // ============================================================
-// app.js — shared logic
+// app.js — shared logic (multi-year)
 // ============================================================
 
 const sb = window.supabase.createClient(
@@ -11,13 +11,14 @@ const MONTHS = ['January','February','March','April','May','June',
                 'July','August','September','October','November','December'];
 const BRAND_NAME = 'Chocxo';
 const BRAND_COLOR = '#6B3410';
-const CURRENT_YEAR = 2026;
 
 const state = {
   catalog: [],
-  sellerboard: [],
-  ppc: [],
+  sellerboard: [],   // all years
+  ppc: [],           // all years
+  selectedYear: null,
   selectedMonth: null,
+  availableYears: [],  // sorted asc
   user: null,
   loaded: false,
 };
@@ -45,10 +46,11 @@ const fmtMult = (n) => {
 };
 
 async function loadAllData() {
+  // No .eq('year', X) — load ALL years now.
   const [catRes, sbRes, ppcRes] = await Promise.all([
     sb.from('catalog').select('*'),
-    sb.from('sellerboard_data').select('*').eq('year', CURRENT_YEAR),
-    sb.from('ppc_data').select('*').eq('year', CURRENT_YEAR),
+    sb.from('sellerboard_data').select('*'),
+    sb.from('ppc_data').select('*'),
   ]);
   if (catRes.error) console.error('catalog:', catRes.error);
   if (sbRes.error)  console.error('sellerboard:', sbRes.error);
@@ -57,39 +59,71 @@ async function loadAllData() {
   state.sellerboard = sbRes.data || [];
   state.ppc = ppcRes.data || [];
   state.loaded = true;
+
+  // Derive available years from actual data
+  const years = new Set();
+  state.sellerboard.forEach(r => years.add(r.year));
+  state.ppc.forEach(r => years.add(r.year));
+  state.availableYears = Array.from(years).sort();
+  if (!state.selectedYear) {
+    state.selectedYear = state.availableYears[state.availableYears.length - 1] || 2026;
+  }
 }
 
-// Single-brand rollup — returns one combined object for the selected month
-function rollupForMonth(month) {
-  const sbRows = state.sellerboard.filter(r => r.month === month);
-  const ppcRows = state.ppc.filter(r => r.month === month);
+// Single-brand rollup for a specific month+year
+function rollupForMonth(month, year) {
+  year = year || state.selectedYear;
+  const sbRows = state.sellerboard.filter(r => r.month === month && r.year === year);
+  const ppcRows = state.ppc.filter(r => r.month === month && r.year === year);
 
   const sessions = sbRows.reduce((a, r) => a + (r.sessions || 0), 0);
   const units = sbRows.reduce((a, r) => a + (r.units || 0), 0);
   const sales = sbRows.reduce((a, r) => a + (+r.gross_sales || 0), 0);
   const refundCost = sbRows.reduce((a, r) => a + Math.abs(+r.refunds || 0), 0);
-  const adSpend = ppcRows.reduce((a, r) => a + (+r.spend || 0), 0);
+
+  // Ad-metric source: PPC campaigns if available, else total_ad_spend from sellerboard
+  const hasPpc = ppcRows.length > 0;
+  const adSpendFromPpc = ppcRows.reduce((a, r) => a + (+r.spend || 0), 0);
+  const adSpendFromTotals = sbRows.reduce((a, r) => a + (+r.total_ad_spend || 0), 0);
+  const adSpend = hasPpc ? adSpendFromPpc : adSpendFromTotals;
+
   const adSales = ppcRows.reduce((a, r) => a + (+r.sales || 0), 0);
   const adOrders = ppcRows.reduce((a, r) => a + (r.orders || 0), 0);
   const impressions = ppcRows.reduce((a, r) => a + (r.impressions || 0), 0);
   const clicks = ppcRows.reduce((a, r) => a + (r.clicks || 0), 0);
 
   return {
+    hasPpcDetail: hasPpc,        // true if campaign-level data exists
+    hasAnyAdSpend: adSpend > 0,  // true if either source has data
     sessions, units, sales, refundCost,
     adSpend, adSales, adOrders, impressions, clicks,
-    organicSales: sales - adSales,
+    organicSales: hasPpc ? sales - adSales : null,  // can only compute when Ad Sales is known
     cvr:   sessions > 0 ? units / sessions : 0,
-    acos:  adSales > 0 ? adSpend / adSales : 0,
+    acos:  hasPpc && adSales > 0 ? adSpend / adSales : null,  // undefined without ad sales
     tacos: sales > 0 ? adSpend / sales : 0,
-    roas:  adSpend > 0 ? adSales / adSpend : 0,
+    roas:  hasPpc && adSpend > 0 ? adSales / adSpend : null,
     ctr:   impressions > 0 ? clicks / impressions : 0,
     cpc:   clicks > 0 ? adSpend / clicks : 0,
   };
 }
 
-function priorMonth(month) {
+function priorMonth(month, year) {
+  year = year || state.selectedYear;
   const idx = MONTHS.indexOf(month);
-  return idx <= 0 ? null : MONTHS[idx - 1];
+  if (idx > 0) return { month: MONTHS[idx - 1], year };
+  // January → December of prior year
+  return { month: 'December', year: year - 1 };
+}
+
+function priorYearSameMonth(month, year) {
+  year = year || state.selectedYear;
+  return { month, year: year - 1 };
+}
+
+// Returns true if any data exists for this month+year combo
+function hasDataFor(month, year) {
+  return state.sellerboard.some(r => r.month === month && r.year === year) ||
+         state.ppc.some(r => r.month === month && r.year === year);
 }
 
 async function getCurrentUser() {
@@ -111,26 +145,54 @@ async function refreshAuthUI() {
   }
 }
 
-function setupMonthSelector(onChange) {
-  const sel = document.getElementById('month-select');
-  if (!sel) return;
-  sel.innerHTML = '';
-  const monthsWithData = new Set(state.sellerboard.map(r => r.month));
-  let defaultMonth = MONTHS[0];
-  for (const m of MONTHS) {
-    if (monthsWithData.has(m)) defaultMonth = m;
-  }
-  state.selectedMonth = state.selectedMonth || defaultMonth;
+function setupSelectors(onChange) {
+  const yearSel = document.getElementById('year-select');
+  const monthSel = document.getElementById('month-select');
+  if (!yearSel || !monthSel) return;
 
-  MONTHS.forEach(m => {
+  // Populate year dropdown
+  yearSel.innerHTML = '';
+  state.availableYears.forEach(y => {
     const opt = document.createElement('option');
-    opt.value = m; opt.textContent = m;
-    if (!monthsWithData.has(m)) opt.textContent += ' (no data)';
-    if (m === state.selectedMonth) opt.selected = true;
-    sel.appendChild(opt);
+    opt.value = y;
+    opt.textContent = y;
+    if (y === state.selectedYear) opt.selected = true;
+    yearSel.appendChild(opt);
   });
-  sel.addEventListener('change', () => {
-    state.selectedMonth = sel.value;
+
+  // Populate months for the selected year
+  const rebuildMonths = () => {
+    monthSel.innerHTML = '';
+    const monthsWithData = new Set(
+      state.sellerboard.filter(r => r.year === state.selectedYear).map(r => r.month)
+    );
+    // Default: most recent month with data in this year
+    let defaultMonth = MONTHS[0];
+    for (const m of MONTHS) {
+      if (monthsWithData.has(m)) defaultMonth = m;
+    }
+    // If current selected month exists in this year, keep it; otherwise reset
+    if (!monthsWithData.has(state.selectedMonth)) {
+      state.selectedMonth = defaultMonth;
+    }
+    MONTHS.forEach(m => {
+      const opt = document.createElement('option');
+      opt.value = m;
+      opt.textContent = m + (monthsWithData.has(m) ? '' : ' (no data)');
+      if (m === state.selectedMonth) opt.selected = true;
+      monthSel.appendChild(opt);
+    });
+  };
+
+  rebuildMonths();
+
+  yearSel.addEventListener('change', () => {
+    state.selectedYear = parseInt(yearSel.value, 10);
+    rebuildMonths();
+    onChange && onChange();
+  });
+  monthSel.addEventListener('change', () => {
+    state.selectedMonth = monthSel.value;
     onChange && onChange();
   });
 }
