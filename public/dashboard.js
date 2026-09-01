@@ -305,15 +305,11 @@ function renderWebsitePage() {
   document.getElementById('web-cases').textContent = fmtNumber2(web.cases);
   document.getElementById('web-mer').textContent = fmtDecimal(web.mer);
 
-  // KPI grid
+  // KPI grid (sales-only — no COGS/profit/margin)
   const kpiRows = [
     ['Web Sales',    fmtCurrency(web.sales)],
     ['Singles sold', fmtNumber(web.singles)],
     ['Case-equiv.',  fmtNumber2(web.cases)],
-    ['COGS',         fmtCurrency(web.cogs)],
-    ['Profit',       fmtCurrency(web.profit)],
-    ['Gross Margin', fmtPct(web.grossMargin)],
-    ['AOV (Meta)',   web.aov != null ? fmtCurrency2(web.aov) : '—'],
     ['Meta Spend',   fmtCurrency(web.metaSpend)],
     ['Meta Impr',    fmtNumber(web.metaImpr)],
     ['Meta Clicks',  fmtNumber(web.metaClicks)],
@@ -344,7 +340,6 @@ function renderWebsitePage() {
         ...r,
         productName: p?.product_name || '—',
         caseEq: (r.quantity_singles || 0) / 6,
-        margin: (+r.sales || 0) > 0 ? (+r.profit || 0) / (+r.sales || 0) : null,
       };
     })
     .sort((a, b) => (+b.sales || 0) - (+a.sales || 0));
@@ -357,11 +352,8 @@ function renderWebsitePage() {
       <td class="px-3 py-2 text-right">${fmtNumber(r.quantity_singles)}</td>
       <td class="px-3 py-2 text-right">${fmtNumber2(r.caseEq)}</td>
       <td class="px-3 py-2 text-right font-semibold">${fmtCurrency(+r.sales)}</td>
-      <td class="px-3 py-2 text-right">${fmtCurrency(+r.cogs)}</td>
-      <td class="px-3 py-2 text-right text-good">${fmtCurrency(+r.profit)}</td>
-      <td class="px-3 py-2 text-right">${fmtPct(r.margin)}</td>
     </tr>
-  `).join('') || `<tr><td colspan="8" class="px-3 py-6 text-center text-slate-400">No web sales for ${m} ${y}</td></tr>`;
+  `).join('') || `<tr><td colspan="5" class="px-3 py-6 text-center text-slate-400">No web sales for ${m} ${y}</td></tr>`;
 
   // Meta Ads detail
   const adRows = state.webAds.filter(r => r.month === m && r.year === y);
@@ -508,7 +500,6 @@ function renderProductsPage() {
       <td class="px-3 py-2 text-right">${fmtCurrency(p.amzSales)}</td>
       <td class="px-3 py-2 text-right">${fmtCurrency(p.webSales)}</td>
       <td class="px-3 py-2 text-right font-semibold">${fmtCurrency(p.totalSales)}</td>
-      <td class="px-3 py-2 text-right">${p.webGrossMargin != null ? fmtPct(p.webGrossMargin) : '—'}</td>
     </tr>
   `).join('');
 
@@ -685,13 +676,12 @@ function exportExcel() {
   const prodSheet = [
     [`Products · ${m} ${y}`],
     [],
-    ['Product','Web SKU','Amazon SKU','Amz Cases','Web Case-eq.','Total Cases','Amz Sales','Web Sales','Total Sales','Web Margin %'],
+    ['Product','Web SKU','Amazon SKU','Amz Cases','Web Case-eq.','Total Cases','Amz Sales','Web Sales','Total Sales'],
   ];
   prodRows.forEach(p => prodSheet.push([
     p.product_name, p.web_sku || '', p.amazon_sku || '',
     p.amzUnits, +p.webCaseEq.toFixed(2), +p.totalCaseEq.toFixed(2),
     p.amzSales, p.webSales, p.totalSales,
-    p.webGrossMargin != null ? +(p.webGrossMargin * 100).toFixed(1) + '%' : '',
   ]));
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(prodSheet), 'Products ' + m);
 
@@ -708,9 +698,9 @@ function exportExcel() {
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(ppcSheet), 'Amazon PPC');
 
   // Sheet 5: Web sales
-  const webSheet = [['CIN7 Web Sales'], [], ['Year','Month','SKU','Singles','Case-equiv.','Sales','COGS','Profit']];
+  const webSheet = [['CIN7 Web Sales'], [], ['Year','Month','SKU','Singles','Case-equiv.','Sales']];
   state.webSales.slice().sort((a,b) => a.year - b.year || MONTHS.indexOf(a.month) - MONTHS.indexOf(b.month))
-    .forEach(r => webSheet.push([r.year, r.month, r.sku, r.quantity_singles, +((r.quantity_singles||0)/6).toFixed(2), +r.sales, +r.cogs, +r.profit]));
+    .forEach(r => webSheet.push([r.year, r.month, r.sku, r.quantity_singles, +((r.quantity_singles||0)/6).toFixed(2), +r.sales]));
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(webSheet), 'Web Sales');
 
   // Sheet 6: Meta ads
