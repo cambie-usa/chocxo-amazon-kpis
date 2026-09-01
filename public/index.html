@@ -253,9 +253,6 @@
               <th class="px-3 py-2 text-right">Singles</th>
               <th class="px-3 py-2 text-right">Case-equiv.</th>
               <th class="px-3 py-2 text-right">Sales</th>
-              <th class="px-3 py-2 text-right">COGS</th>
-              <th class="px-3 py-2 text-right">Profit</th>
-              <th class="px-3 py-2 text-right">Margin</th>
             </tr>
           </thead>
           <tbody id="web-top-body"></tbody>
@@ -355,7 +352,6 @@
         <option value="totalCaseEq-desc">Total Cases (high → low)</option>
         <option value="amzSales-desc">Amazon Sales (high → low)</option>
         <option value="webSales-desc">Web Sales (high → low)</option>
-        <option value="webGrossMargin-desc">Web Margin % (high → low)</option>
         <option value="product_name-asc">Product Name (A → Z)</option>
       </select>
       <span class="text-xs text-slate-500 ml-auto hidden sm:inline">Tip: click any column header to sort</span>
@@ -374,7 +370,6 @@
             <th class="px-3 py-2 text-right cursor-pointer hover:bg-white/10 sortable" data-sort="amzSales">Amz Sales <span class="sort-arrow"></span></th>
             <th class="px-3 py-2 text-right cursor-pointer hover:bg-white/10 sortable" data-sort="webSales">Web Sales <span class="sort-arrow"></span></th>
             <th class="px-3 py-2 text-right cursor-pointer hover:bg-white/10 sortable" data-sort="totalSales">Total Sales <span class="sort-arrow"></span></th>
-            <th class="px-3 py-2 text-right cursor-pointer hover:bg-white/10 sortable" data-sort="webGrossMargin">Web Margin <span class="sort-arrow"></span></th>
           </tr>
         </thead>
         <tbody id="products-body"></tbody>
