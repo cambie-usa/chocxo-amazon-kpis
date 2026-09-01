@@ -13,7 +13,7 @@
         extend: {
           colors: {
             navy: '#1F2A44', cocoa: '#6B3410', 'cocoa-mid': '#8B5A2B', gold: '#C9A961',
-            cream: '#FAF6F0', good: '#2F8F5F', bad: '#C0392B',
+            cream: '#FAF6F0', good: '#2F8F5F', bad: '#C0392B', mid: '#EFE6D6',
           }
         }
       }
@@ -38,23 +38,33 @@
 
   <main class="max-w-7xl mx-auto px-6 py-8">
 
-    <div class="flex gap-2 mb-6 border-b border-slate-200">
-      <button data-tab="upload" class="admin-tab px-4 py-2 text-sm font-semibold border-b-2 border-cocoa text-navy">Upload Data</button>
-      <button data-tab="catalog" class="admin-tab px-4 py-2 text-sm font-semibold border-b-2 border-transparent text-slate-500 hover:text-navy">Manage Catalog</button>
-      <button data-tab="edit-sb" class="admin-tab px-4 py-2 text-sm font-semibold border-b-2 border-transparent text-slate-500 hover:text-navy">Edit Sellerboard</button>
-      <button data-tab="edit-ppc" class="admin-tab px-4 py-2 text-sm font-semibold border-b-2 border-transparent text-slate-500 hover:text-navy">Edit PPC</button>
+    <div class="flex gap-2 mb-6 border-b border-slate-200 overflow-x-auto">
+      <button data-tab="upload" class="admin-tab px-4 py-2 text-sm font-semibold border-b-2 border-cocoa text-navy whitespace-nowrap">Upload Data</button>
+      <button data-tab="catalog" class="admin-tab px-4 py-2 text-sm font-semibold border-b-2 border-transparent text-slate-500 hover:text-navy whitespace-nowrap">Manage Catalog</button>
+      <button data-tab="edit-sb" class="admin-tab px-4 py-2 text-sm font-semibold border-b-2 border-transparent text-slate-500 hover:text-navy whitespace-nowrap">Edit Amazon Sellerboard</button>
+      <button data-tab="edit-ppc" class="admin-tab px-4 py-2 text-sm font-semibold border-b-2 border-transparent text-slate-500 hover:text-navy whitespace-nowrap">Edit Amazon PPC</button>
+      <button data-tab="edit-web" class="admin-tab px-4 py-2 text-sm font-semibold border-b-2 border-transparent text-slate-500 hover:text-navy whitespace-nowrap">Edit Web Sales</button>
+      <button data-tab="edit-meta" class="admin-tab px-4 py-2 text-sm font-semibold border-b-2 border-transparent text-slate-500 hover:text-navy whitespace-nowrap">Edit Meta Ads</button>
     </div>
 
     <section id="tab-upload" class="admin-section">
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <!-- Amazon channel uploads -->
+      <div class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">Amazon Channel</div>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
 
         <div class="bg-white rounded-lg shadow-sm p-6">
           <h2 class="text-lg font-bold text-navy">Sellerboard Upload</h2>
           <p class="text-sm text-slate-600 mt-1">Drop your monthly Sellerboard export (.xlsx).</p>
 
-          <div class="mt-4">
-            <label class="block text-xs font-bold text-navy uppercase tracking-wide mb-1">Month</label>
-            <select id="sb-month" class="w-full border border-slate-300 rounded px-3 py-2 text-sm"></select>
+          <div class="grid grid-cols-2 gap-3 mt-4">
+            <div>
+              <label class="block text-xs font-bold text-navy uppercase tracking-wide mb-1">Month</label>
+              <select id="sb-month" class="w-full border border-slate-300 rounded px-3 py-2 text-sm"></select>
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-navy uppercase tracking-wide mb-1">Year</label>
+              <select id="sb-year" class="w-full border border-slate-300 rounded px-3 py-2 text-sm"></select>
+            </div>
           </div>
 
           <div id="sb-drop" class="mt-4 border-2 border-dashed border-slate-300 rounded-lg p-8 text-center cursor-pointer hover:border-cocoa hover:bg-cocoa/5 transition">
@@ -67,12 +77,18 @@
         </div>
 
         <div class="bg-white rounded-lg shadow-sm p-6">
-          <h2 class="text-lg font-bold text-navy">PPC / Seller Central Upload</h2>
+          <h2 class="text-lg font-bold text-navy">Amazon PPC Upload</h2>
           <p class="text-sm text-slate-600 mt-1">Drop your monthly Amazon Campaigns export (.xlsx or .csv).</p>
 
-          <div class="mt-4">
-            <label class="block text-xs font-bold text-navy uppercase tracking-wide mb-1">Month</label>
-            <select id="ppc-month" class="w-full border border-slate-300 rounded px-3 py-2 text-sm"></select>
+          <div class="grid grid-cols-2 gap-3 mt-4">
+            <div>
+              <label class="block text-xs font-bold text-navy uppercase tracking-wide mb-1">Month</label>
+              <select id="ppc-month" class="w-full border border-slate-300 rounded px-3 py-2 text-sm"></select>
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-navy uppercase tracking-wide mb-1">Year</label>
+              <select id="ppc-year" class="w-full border border-slate-300 rounded px-3 py-2 text-sm"></select>
+            </div>
           </div>
 
           <div id="ppc-drop" class="mt-4 border-2 border-dashed border-slate-300 rounded-lg p-8 text-center cursor-pointer hover:border-gold hover:bg-gold/5 transition">
@@ -85,9 +101,63 @@
         </div>
       </div>
 
+      <!-- Website channel uploads -->
+      <div class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">Website Channel</div>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+
+        <div class="bg-white rounded-lg shadow-sm p-6">
+          <h2 class="text-lg font-bold text-navy">CIN7 Web Sales Upload</h2>
+          <p class="text-sm text-slate-600 mt-1">Drop your monthly CIN7 Sales by Product Summary (.xlsx). Automatically filters to Chocxo brand, skips -CS6 rows, and aggregates duplicates.</p>
+
+          <div class="grid grid-cols-2 gap-3 mt-4">
+            <div>
+              <label class="block text-xs font-bold text-navy uppercase tracking-wide mb-1">Month</label>
+              <select id="web-month" class="w-full border border-slate-300 rounded px-3 py-2 text-sm"></select>
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-navy uppercase tracking-wide mb-1">Year</label>
+              <select id="web-year" class="w-full border border-slate-300 rounded px-3 py-2 text-sm"></select>
+            </div>
+          </div>
+
+          <div id="web-drop" class="mt-4 border-2 border-dashed border-slate-300 rounded-lg p-8 text-center cursor-pointer hover:border-cocoa-mid hover:bg-cocoa-mid/5 transition">
+            <div class="text-3xl mb-2">🌐</div>
+            <p class="text-sm font-semibold text-navy">Drop CIN7 .xlsx here</p>
+            <p class="text-xs text-slate-500 mt-1">or click to browse</p>
+            <input id="web-file" type="file" accept=".xlsx,.xls" class="hidden" />
+          </div>
+          <div id="web-preview" class="mt-4 hidden"></div>
+        </div>
+
+        <div class="bg-white rounded-lg shadow-sm p-6">
+          <h2 class="text-lg font-bold text-navy">Meta Ads Upload</h2>
+          <p class="text-sm text-slate-600 mt-1">Drop your Meta Ads Manager monthly export (.csv). Automatically aggregates duplicate ad names.</p>
+
+          <div class="grid grid-cols-2 gap-3 mt-4">
+            <div>
+              <label class="block text-xs font-bold text-navy uppercase tracking-wide mb-1">Month</label>
+              <select id="meta-month" class="w-full border border-slate-300 rounded px-3 py-2 text-sm"></select>
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-navy uppercase tracking-wide mb-1">Year</label>
+              <select id="meta-year" class="w-full border border-slate-300 rounded px-3 py-2 text-sm"></select>
+            </div>
+          </div>
+
+          <div id="meta-drop" class="mt-4 border-2 border-dashed border-slate-300 rounded-lg p-8 text-center cursor-pointer hover:border-gold hover:bg-gold/5 transition">
+            <div class="text-3xl mb-2">📱</div>
+            <p class="text-sm font-semibold text-navy">Drop Meta .csv here</p>
+            <p class="text-xs text-slate-500 mt-1">or click to browse</p>
+            <input id="meta-file" type="file" accept=".csv" class="hidden" />
+          </div>
+          <div id="meta-preview" class="mt-4 hidden"></div>
+        </div>
+      </div>
+
+      <!-- Bulk upload -->
       <div class="bg-white rounded-lg shadow-sm p-6 mt-6">
         <h2 class="text-lg font-bold text-navy">Bulk Upload (multiple files)</h2>
-        <p class="text-sm text-slate-600 mt-1">Drop multiple files at once. Filenames containing a month name (e.g., <code class="text-xs bg-slate-100 px-1 rounded">..._January_2026.xlsx</code>) get auto-tagged.</p>
+        <p class="text-sm text-slate-600 mt-1">Drop multiple files at once. Filenames containing a month name (e.g., <code class="text-xs bg-slate-100 px-1 rounded">..._January_2026.xlsx</code>) get auto-tagged. Auto-detects Sellerboard, PPC, CIN7, or Meta based on file content.</p>
         <div id="bulk-drop" class="mt-4 border-2 border-dashed border-slate-300 rounded-lg p-10 text-center cursor-pointer hover:border-navy hover:bg-navy/5 transition">
           <div class="text-4xl mb-2">📦</div>
           <p class="text-sm font-semibold text-navy">Drop multiple files here</p>
@@ -124,14 +194,18 @@
     <section id="tab-edit-sb" class="admin-section hidden">
       <div class="bg-white rounded-lg shadow-sm p-6">
         <div class="flex items-center justify-between mb-4 gap-4 flex-wrap">
-          <h2 class="text-lg font-bold text-navy">Sellerboard Data</h2>
-          <select id="edit-sb-month" class="border border-slate-300 rounded px-3 py-2 text-sm"></select>
+          <h2 class="text-lg font-bold text-navy">Amazon Sellerboard Data</h2>
+          <div class="flex gap-2">
+            <select id="edit-sb-year" class="border border-slate-300 rounded px-3 py-2 text-sm"></select>
+            <select id="edit-sb-month" class="border border-slate-300 rounded px-3 py-2 text-sm"></select>
+          </div>
         </div>
         <div class="overflow-x-auto">
           <table class="w-full text-sm">
             <thead class="bg-cocoa text-white text-xs uppercase">
               <tr>
                 <th class="px-3 py-2 text-left">Month</th>
+                <th class="px-3 py-2 text-left">Year</th>
                 <th class="px-3 py-2 text-left">ASIN</th>
                 <th class="px-3 py-2 text-right">Sessions</th>
                 <th class="px-3 py-2 text-right">Units</th>
@@ -149,14 +223,18 @@
     <section id="tab-edit-ppc" class="admin-section hidden">
       <div class="bg-white rounded-lg shadow-sm p-6">
         <div class="flex items-center justify-between mb-4 gap-4 flex-wrap">
-          <h2 class="text-lg font-bold text-navy">PPC Data</h2>
-          <select id="edit-ppc-month" class="border border-slate-300 rounded px-3 py-2 text-sm"></select>
+          <h2 class="text-lg font-bold text-navy">Amazon PPC Data</h2>
+          <div class="flex gap-2">
+            <select id="edit-ppc-year" class="border border-slate-300 rounded px-3 py-2 text-sm"></select>
+            <select id="edit-ppc-month" class="border border-slate-300 rounded px-3 py-2 text-sm"></select>
+          </div>
         </div>
         <div class="overflow-x-auto">
           <table class="w-full text-sm">
             <thead class="bg-cocoa text-white text-xs uppercase">
               <tr>
                 <th class="px-3 py-2 text-left">Month</th>
+                <th class="px-3 py-2 text-left">Year</th>
                 <th class="px-3 py-2 text-left">Campaign</th>
                 <th class="px-3 py-2 text-center">Type</th>
                 <th class="px-3 py-2 text-right">Impr</th>
@@ -168,6 +246,65 @@
               </tr>
             </thead>
             <tbody id="edit-ppc-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section id="tab-edit-web" class="admin-section hidden">
+      <div class="bg-white rounded-lg shadow-sm p-6">
+        <div class="flex items-center justify-between mb-4 gap-4 flex-wrap">
+          <h2 class="text-lg font-bold text-navy">Web Sales Data (CIN7)</h2>
+          <div class="flex gap-2">
+            <select id="edit-web-year" class="border border-slate-300 rounded px-3 py-2 text-sm"></select>
+            <select id="edit-web-month" class="border border-slate-300 rounded px-3 py-2 text-sm"></select>
+          </div>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead class="bg-cocoa text-white text-xs uppercase">
+              <tr>
+                <th class="px-3 py-2 text-left">Month</th>
+                <th class="px-3 py-2 text-left">Year</th>
+                <th class="px-3 py-2 text-left">SKU</th>
+                <th class="px-3 py-2 text-right">Qty (singles)</th>
+                <th class="px-3 py-2 text-right">Sales</th>
+                <th class="px-3 py-2 text-right">COGS</th>
+                <th class="px-3 py-2 text-right">Profit</th>
+                <th class="px-3 py-2 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="edit-web-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section id="tab-edit-meta" class="admin-section hidden">
+      <div class="bg-white rounded-lg shadow-sm p-6">
+        <div class="flex items-center justify-between mb-4 gap-4 flex-wrap">
+          <h2 class="text-lg font-bold text-navy">Meta Ads Data</h2>
+          <div class="flex gap-2">
+            <select id="edit-meta-year" class="border border-slate-300 rounded px-3 py-2 text-sm"></select>
+            <select id="edit-meta-month" class="border border-slate-300 rounded px-3 py-2 text-sm"></select>
+          </div>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead class="bg-cocoa text-white text-xs uppercase">
+              <tr>
+                <th class="px-3 py-2 text-left">Month</th>
+                <th class="px-3 py-2 text-left">Year</th>
+                <th class="px-3 py-2 text-left">Ad Name</th>
+                <th class="px-3 py-2 text-right">Spend</th>
+                <th class="px-3 py-2 text-right">Impr</th>
+                <th class="px-3 py-2 text-right">Clicks</th>
+                <th class="px-3 py-2 text-right">Purchases</th>
+                <th class="px-3 py-2 text-right">Value</th>
+                <th class="px-3 py-2 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="edit-meta-body"></tbody>
           </table>
         </div>
       </div>
