@@ -1,10 +1,9 @@
-
 <!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Chocxo — Amazon Performance Dashboard</title>
+  <title>Chocxo — Ecommerce Performance Dashboard</title>
   <link rel="preconnect" href="https://cdn.jsdelivr.net">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
@@ -21,6 +20,7 @@
             gold:    '#C9A961',
             cream:   '#FAF6F0',
             mid:     '#EFE6D6',
+            teal:    '#2E86AB',
             'good':  '#2F8F5F',
             'bad':   '#C0392B',
           },
@@ -34,15 +34,18 @@
   <link rel="stylesheet" href="/style.css" />
 </head>
 <body class="bg-cream text-slate-900 font-sans">
+  <!-- ============ NAV BAR ============ -->
   <nav class="bg-cocoa text-white">
     <div class="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between">
       <div class="flex items-center gap-6">
-        <h1 class="text-lg font-bold tracking-tight">Chocxo · Amazon KPIs</h1>
-        <div class="hidden sm:flex gap-1 text-sm">
+        <h1 class="text-lg font-bold tracking-tight">Chocxo · Ecommerce KPIs</h1>
+        <div class="hidden md:flex gap-1 text-sm">
           <a href="/" class="px-3 py-1.5 rounded bg-white/10 hover:bg-white/20">Dashboard</a>
+          <a href="/amazon" class="px-3 py-1.5 rounded hover:bg-white/10">Amazon</a>
+          <a href="/website" class="px-3 py-1.5 rounded hover:bg-white/10">Website</a>
+          <a href="/combined" class="px-3 py-1.5 rounded hover:bg-white/10">Combined</a>
+          <a href="/products" class="px-3 py-1.5 rounded hover:bg-white/10">Products</a>
           <a href="/trends" class="px-3 py-1.5 rounded hover:bg-white/10">Trends</a>
-          <a href="/products" class="px-3 py-1.5 rounded hover:bg-white/10">By Product</a>
-          <a href="/ppc" class="px-3 py-1.5 rounded hover:bg-white/10">PPC Detail</a>
         </div>
       </div>
       <div class="flex items-center gap-3 text-sm">
@@ -53,14 +56,26 @@
         <a id="admin-link" href="/login" class="px-3 py-1.5 rounded bg-white/10 hover:bg-white/20">Admin</a>
       </div>
     </div>
+    <!-- Mobile nav -->
+    <div class="md:hidden bg-cocoa border-t border-white/10">
+      <div class="max-w-7xl mx-auto px-6 py-2 flex gap-1 text-xs overflow-x-auto">
+        <a href="/" class="px-2 py-1 rounded bg-white/10 whitespace-nowrap">Dashboard</a>
+        <a href="/amazon" class="px-2 py-1 rounded whitespace-nowrap">Amazon</a>
+        <a href="/website" class="px-2 py-1 rounded whitespace-nowrap">Website</a>
+        <a href="/combined" class="px-2 py-1 rounded whitespace-nowrap">Combined</a>
+        <a href="/products" class="px-2 py-1 rounded whitespace-nowrap">Products</a>
+        <a href="/trends" class="px-2 py-1 rounded whitespace-nowrap">Trends</a>
+      </div>
+    </div>
   </nav>
 
   <header class="bg-cocoa text-white">
     <div class="max-w-7xl mx-auto px-6 pb-6">
-      <p class="text-white/70 text-sm">Vendor-facing dashboard · Chocxo · Retail Chocolate</p>
+      <p class="text-white/70 text-sm">Chocxo · Amazon + Website channels · Retail Chocolate</p>
     </div>
   </header>
 
+  <!-- ============ MONTH/YEAR SELECTOR ============ -->
   <div class="max-w-7xl mx-auto px-6 mt-6 flex items-center gap-4 flex-wrap">
     <label class="text-sm font-semibold text-navy">Year:</label>
     <select id="year-select" class="border border-slate-300 rounded px-3 py-2 bg-white text-sm font-medium focus:outline-none focus:ring-2 focus:ring-cocoa"></select>
@@ -69,45 +84,83 @@
     <span id="data-status" class="text-xs text-slate-500"></span>
   </div>
 
-  <main class="max-w-7xl mx-auto px-6 mt-4 pb-12">
+  <!-- ============ DASHBOARD (HOME) ============ -->
+  <div id="dashboard-page" class="max-w-7xl mx-auto px-6 mt-4 pb-12">
+    <!-- Seasonal pause banner -->
+    <div id="seasonal-banner" class="hidden bg-mid/50 border-l-4 border-cocoa-mid p-4 rounded mb-6">
+      <p class="text-sm text-navy"><strong>Seasonal pause.</strong> Chocxo pauses shipping May–September due to summer heat. No sales expected this month.</p>
+    </div>
+
+    <!-- Top-line KPI tiles (3 channels) -->
+    <section class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+      <div class="bg-white rounded-lg shadow-sm overflow-hidden">
+        <div class="bg-cocoa text-white py-2 px-4 text-sm font-bold uppercase tracking-wide">Combined Ecommerce</div>
+        <div class="p-5 space-y-2" id="tile-combined"></div>
+      </div>
+      <div class="bg-white rounded-lg shadow-sm overflow-hidden">
+        <div class="bg-teal text-white py-2 px-4 text-sm font-bold uppercase tracking-wide">Amazon</div>
+        <div class="p-5 space-y-2" id="tile-amazon"></div>
+      </div>
+      <div class="bg-white rounded-lg shadow-sm overflow-hidden">
+        <div class="bg-gold text-white py-2 px-4 text-sm font-bold uppercase tracking-wide">Website</div>
+        <div class="p-5 space-y-2" id="tile-website"></div>
+      </div>
+    </section>
+
+    <!-- MoM + YoY comparison -->
+    <section class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+      <div class="bg-white rounded-lg shadow-sm overflow-hidden">
+        <div class="bg-navy text-white py-2 px-4 text-sm font-bold uppercase tracking-wide">Month-over-Month · Combined</div>
+        <div class="p-5 grid grid-cols-1 gap-y-3 text-sm" id="dashboard-mom"></div>
+      </div>
+      <div class="bg-white rounded-lg shadow-sm overflow-hidden">
+        <div class="bg-cocoa-mid text-white py-2 px-4 text-sm font-bold uppercase tracking-wide">Year-over-Year · Combined</div>
+        <div class="p-5 grid grid-cols-1 gap-y-3 text-sm" id="dashboard-yoy"></div>
+      </div>
+    </section>
+
+    <!-- Sales chart YTD -->
+    <section class="bg-white rounded-lg shadow-sm p-5 mb-6">
+      <h2 class="text-lg font-bold text-navy mb-4">Monthly Sales · Amazon vs Website · <span id="chart-year-label">—</span></h2>
+      <div class="h-80">
+        <canvas id="sales-chart"></canvas>
+      </div>
+    </section>
+  </div>
+
+  <!-- ============ AMAZON PAGE ============ -->
+  <div id="amazon-page" class="hidden max-w-7xl mx-auto px-6 mt-4 pb-12">
+    <div id="amazon-seasonal-banner" class="hidden bg-mid/50 border-l-4 border-cocoa-mid p-4 rounded mb-6">
+      <p class="text-sm text-navy"><strong>Seasonal pause.</strong> Chocxo pauses shipping May–September due to summer heat.</p>
+    </div>
 
     <section class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
-      <div class="bg-white rounded-lg shadow-sm border-t-4 border-cocoa p-5">
-        <div class="text-xs font-bold text-cocoa uppercase tracking-wide">Total Sales</div>
-        <div id="kpi-total-sales" class="text-3xl font-bold text-navy mt-2">—</div>
+      <div class="bg-white rounded-lg shadow-sm border-t-4 border-teal p-5">
+        <div class="text-xs font-bold text-teal uppercase tracking-wide">Amazon Sales</div>
+        <div id="amz-sales" class="text-3xl font-bold text-navy mt-2">—</div>
       </div>
       <div class="bg-white rounded-lg shadow-sm border-t-4 border-gold p-5">
         <div class="text-xs font-bold text-gold uppercase tracking-wide">Ad Spend</div>
-        <div id="kpi-total-ad-spend" class="text-3xl font-bold text-navy mt-2">—</div>
+        <div id="amz-adspend" class="text-3xl font-bold text-navy mt-2">—</div>
       </div>
       <div class="bg-white rounded-lg shadow-sm border-t-4 border-cocoa-mid p-5">
-        <div class="text-xs font-bold text-cocoa-mid uppercase tracking-wide">Total Units</div>
-        <div id="kpi-total-units" class="text-3xl font-bold text-navy mt-2">—</div>
+        <div class="text-xs font-bold text-cocoa-mid uppercase tracking-wide">Cases</div>
+        <div id="amz-units" class="text-3xl font-bold text-navy mt-2">—</div>
       </div>
       <div class="bg-white rounded-lg shadow-sm border-t-4 border-navy p-5">
         <div class="text-xs font-bold text-navy uppercase tracking-wide">MoM Sales</div>
-        <div id="kpi-mom-sales" class="text-3xl font-bold text-navy mt-2">—</div>
+        <div id="amz-mom" class="text-3xl font-bold text-navy mt-2">—</div>
       </div>
     </section>
 
     <section class="bg-white rounded-lg shadow-sm overflow-hidden mb-6">
-      <div class="bg-cocoa text-white py-3 text-center font-bold uppercase tracking-wide">Chocxo KPI Snapshot</div>
-      <div class="grid grid-cols-1 lg:grid-cols-3 gap-0">
-        <div class="lg:col-span-2 p-5 grid grid-cols-2 md:grid-cols-4 gap-x-4 gap-y-3 text-sm border-r border-mid">
-          <div id="kpi-grid" class="contents"></div>
-        </div>
-        <div class="bg-mid/30">
-          <div class="bg-navy text-white py-2 text-center text-xs font-bold uppercase tracking-wide">Month-over-Month</div>
-          <div class="p-5 grid grid-cols-1 gap-y-3 text-sm" id="mom-panel"></div>
-          <div class="bg-cocoa-mid text-white py-2 text-center text-xs font-bold uppercase tracking-wide">Year-over-Year</div>
-          <div class="p-5 grid grid-cols-1 gap-y-3 text-sm" id="yoy-panel"></div>
-        </div>
-      </div>
+      <div class="bg-teal text-white py-3 text-center font-bold uppercase tracking-wide">Amazon KPIs</div>
+      <div class="p-5 grid grid-cols-2 md:grid-cols-4 gap-x-4 gap-y-3 text-sm" id="amz-kpi-grid"></div>
     </section>
 
     <section class="bg-white rounded-lg shadow-sm overflow-hidden mb-6">
       <div class="bg-navy text-white px-5 py-3 font-bold uppercase tracking-wide flex items-center justify-between">
-        <span>Top SKUs · <span id="top-skus-month-pill"></span></span>
+        <span>Top Amazon SKUs · <span id="amz-top-pill"></span></span>
       </div>
       <div class="overflow-x-auto">
         <table class="w-full text-sm">
@@ -115,56 +168,195 @@
             <tr>
               <th class="px-3 py-2 text-left">SKU</th>
               <th class="px-3 py-2 text-left">Product</th>
-              <th class="px-3 py-2 text-right">Units</th>
+              <th class="px-3 py-2 text-right">Cases</th>
               <th class="px-3 py-2 text-right">Sessions</th>
               <th class="px-3 py-2 text-right">CVR</th>
               <th class="px-3 py-2 text-right">Sales</th>
               <th class="px-3 py-2 text-right">Refund</th>
             </tr>
           </thead>
-          <tbody id="top-skus-body"></tbody>
+          <tbody id="amz-top-body"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- PPC Detail -->
+    <section class="bg-white rounded-lg shadow-sm overflow-hidden mb-6">
+      <div class="bg-cocoa text-white px-5 py-3 font-bold uppercase tracking-wide">
+        Amazon PPC Detail · <span id="amz-ppc-pill"></span>
+      </div>
+      <div id="amz-ppc-empty" class="hidden bg-mid/40 p-4 text-sm text-navy">
+        No campaign-level PPC data for this month. Aggregated ad spend shown above.
+      </div>
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead class="bg-cream text-cocoa text-xs uppercase">
+            <tr>
+              <th class="px-3 py-2 text-left">Campaign</th>
+              <th class="px-3 py-2 text-center">Type</th>
+              <th class="px-3 py-2 text-right">Impr</th>
+              <th class="px-3 py-2 text-right">Clicks</th>
+              <th class="px-3 py-2 text-right">CTR</th>
+              <th class="px-3 py-2 text-right">Spend</th>
+              <th class="px-3 py-2 text-right">Orders</th>
+              <th class="px-3 py-2 text-right">Sales</th>
+              <th class="px-3 py-2 text-right">ACoS</th>
+              <th class="px-3 py-2 text-right">ROAS</th>
+            </tr>
+          </thead>
+          <tbody id="amz-ppc-body"></tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+
+  <!-- ============ WEBSITE PAGE ============ -->
+  <div id="website-page" class="hidden max-w-7xl mx-auto px-6 mt-4 pb-12">
+    <div id="web-seasonal-banner" class="hidden bg-mid/50 border-l-4 border-cocoa-mid p-4 rounded mb-6">
+      <p class="text-sm text-navy"><strong>Seasonal pause.</strong> Chocxo pauses shipping May–September due to summer heat.</p>
+    </div>
+
+    <section class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
+      <div class="bg-white rounded-lg shadow-sm border-t-4 border-gold p-5">
+        <div class="text-xs font-bold text-gold uppercase tracking-wide">Web Sales</div>
+        <div id="web-sales" class="text-3xl font-bold text-navy mt-2">—</div>
+      </div>
+      <div class="bg-white rounded-lg shadow-sm border-t-4 border-cocoa p-5">
+        <div class="text-xs font-bold text-cocoa uppercase tracking-wide">Meta Spend</div>
+        <div id="web-meta-spend" class="text-3xl font-bold text-navy mt-2">—</div>
+      </div>
+      <div class="bg-white rounded-lg shadow-sm border-t-4 border-cocoa-mid p-5">
+        <div class="text-xs font-bold text-cocoa-mid uppercase tracking-wide">Cases (equiv.)</div>
+        <div id="web-cases" class="text-3xl font-bold text-navy mt-2">—</div>
+      </div>
+      <div class="bg-white rounded-lg shadow-sm border-t-4 border-navy p-5">
+        <div class="text-xs font-bold text-navy uppercase tracking-wide">MER</div>
+        <div id="web-mer" class="text-3xl font-bold text-navy mt-2">—</div>
+      </div>
+    </section>
+
+    <section class="bg-white rounded-lg shadow-sm overflow-hidden mb-6">
+      <div class="bg-gold text-white py-3 text-center font-bold uppercase tracking-wide">Website KPIs</div>
+      <div class="p-5 grid grid-cols-2 md:grid-cols-4 gap-x-4 gap-y-3 text-sm" id="web-kpi-grid"></div>
+    </section>
+
+    <section class="bg-white rounded-lg shadow-sm overflow-hidden mb-6">
+      <div class="bg-navy text-white px-5 py-3 font-bold uppercase tracking-wide flex items-center justify-between">
+        <span>Top Web SKUs · <span id="web-top-pill"></span></span>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead class="bg-cream text-cocoa text-xs uppercase">
+            <tr>
+              <th class="px-3 py-2 text-left">SKU</th>
+              <th class="px-3 py-2 text-left">Product</th>
+              <th class="px-3 py-2 text-right">Singles</th>
+              <th class="px-3 py-2 text-right">Case-equiv.</th>
+              <th class="px-3 py-2 text-right">Sales</th>
+              <th class="px-3 py-2 text-right">COGS</th>
+              <th class="px-3 py-2 text-right">Profit</th>
+              <th class="px-3 py-2 text-right">Margin</th>
+            </tr>
+          </thead>
+          <tbody id="web-top-body"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Meta Ads detail -->
+    <section class="bg-white rounded-lg shadow-sm overflow-hidden mb-6">
+      <div class="bg-cocoa text-white px-5 py-3 font-bold uppercase tracking-wide">
+        Meta Ads Detail · <span id="web-meta-pill"></span>
+      </div>
+      <div id="web-meta-empty" class="hidden bg-mid/40 p-4 text-sm text-navy">
+        No Meta ad activity for this month.
+      </div>
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead class="bg-cream text-cocoa text-xs uppercase">
+            <tr>
+              <th class="px-3 py-2 text-left">Ad Name</th>
+              <th class="px-3 py-2 text-right">Spend</th>
+              <th class="px-3 py-2 text-right">Impr</th>
+              <th class="px-3 py-2 text-right">Clicks</th>
+              <th class="px-3 py-2 text-right">CTR</th>
+              <th class="px-3 py-2 text-right">Purchases</th>
+              <th class="px-3 py-2 text-right">Value</th>
+              <th class="px-3 py-2 text-right">ROAS</th>
+            </tr>
+          </thead>
+          <tbody id="web-meta-body"></tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+
+  <!-- ============ COMBINED PAGE ============ -->
+  <div id="combined-page" class="hidden max-w-7xl mx-auto px-6 mt-4 pb-12">
+    <div id="combined-seasonal-banner" class="hidden bg-mid/50 border-l-4 border-cocoa-mid p-4 rounded mb-6">
+      <p class="text-sm text-navy"><strong>Seasonal pause.</strong> Chocxo pauses shipping May–September due to summer heat.</p>
+    </div>
+
+    <section class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
+      <div class="bg-white rounded-lg shadow-sm border-t-4 border-cocoa p-5">
+        <div class="text-xs font-bold text-cocoa uppercase tracking-wide">Total Sales</div>
+        <div id="comb-total-sales" class="text-3xl font-bold text-navy mt-2">—</div>
+      </div>
+      <div class="bg-white rounded-lg shadow-sm border-t-4 border-teal p-5">
+        <div class="text-xs font-bold text-teal uppercase tracking-wide">Amazon Share</div>
+        <div id="comb-amz-share" class="text-3xl font-bold text-navy mt-2">—</div>
+      </div>
+      <div class="bg-white rounded-lg shadow-sm border-t-4 border-gold p-5">
+        <div class="text-xs font-bold text-gold uppercase tracking-wide">Web Share</div>
+        <div id="comb-web-share" class="text-3xl font-bold text-navy mt-2">—</div>
+      </div>
+      <div class="bg-white rounded-lg shadow-sm border-t-4 border-navy p-5">
+        <div class="text-xs font-bold text-navy uppercase tracking-wide">Blended MER</div>
+        <div id="comb-mer" class="text-3xl font-bold text-navy mt-2">—</div>
+      </div>
+    </section>
+
+    <section class="bg-white rounded-lg shadow-sm overflow-hidden mb-6">
+      <div class="bg-cocoa text-white py-3 text-center font-bold uppercase tracking-wide">Channel Breakdown</div>
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead class="bg-cream text-cocoa text-xs uppercase">
+            <tr>
+              <th class="px-3 py-2 text-left">Metric</th>
+              <th class="px-3 py-2 text-right">Amazon</th>
+              <th class="px-3 py-2 text-right">Website</th>
+              <th class="px-3 py-2 text-right">Combined</th>
+            </tr>
+          </thead>
+          <tbody id="comb-breakdown-body"></tbody>
         </table>
       </div>
     </section>
 
     <section class="bg-white rounded-lg shadow-sm p-5 mb-6">
-      <h2 class="text-lg font-bold text-navy mb-4">Monthly Sales Trend (<span id="chart-year-label">—</span>)</h2>
+      <h2 class="text-lg font-bold text-navy mb-4">Sales Split · Amazon vs Website · <span id="comb-chart-label">—</span></h2>
       <div class="h-80">
-        <canvas id="sales-chart"></canvas>
+        <canvas id="combined-chart"></canvas>
       </div>
     </section>
-
-  </main>
-
-  <div id="trends-page" class="hidden max-w-7xl mx-auto px-6 pb-12">
-    <h2 class="text-2xl font-bold text-navy mb-4 mt-6">Trends</h2>
-    <p class="text-sm text-slate-600 mb-4">Month-by-month performance across all years. Organic Sales = Total Sales minus Ad Sales.</p>
-    <div class="bg-white rounded-lg shadow-sm overflow-x-auto">
-      <table class="w-full text-sm">
-        <thead class="bg-cocoa text-white text-xs uppercase">
-          <tr id="trends-head"></tr>
-        </thead>
-        <tbody id="trends-body"></tbody>
-      </table>
-    </div>
   </div>
 
-  <div id="products-page" class="hidden max-w-7xl mx-auto px-6 pb-12">
-    <div class="flex items-center justify-between mt-6 mb-4 flex-wrap gap-3">
-      <h2 class="text-2xl font-bold text-navy">By Product</h2>
-      <div id="products-month-pill" class="px-3 py-1 bg-cocoa text-white text-sm rounded font-medium"></div>
+  <!-- ============ PRODUCTS PAGE ============ -->
+  <div id="products-page" class="hidden max-w-7xl mx-auto px-6 mt-4 pb-12">
+    <div class="flex items-center justify-between mt-2 mb-4 flex-wrap gap-3">
+      <h2 class="text-2xl font-bold text-navy">Products · <span id="products-month-pill" class="text-cocoa"></span></h2>
     </div>
+    <p class="text-sm text-slate-600 mb-4">One row per master product. Case-equivalents combine Amazon cases + Web singles ÷ 6.</p>
 
     <div class="bg-white rounded-lg shadow-sm p-3 mb-4 flex items-center gap-3 flex-wrap">
       <label class="text-xs font-bold text-navy uppercase tracking-wide">Sort by:</label>
       <select id="products-sort" class="border border-slate-300 rounded px-2 py-1.5 text-sm">
-        <option value="sales-desc">Sales (high → low)</option>
-        <option value="sales-asc">Sales (low → high)</option>
-        <option value="units-desc">Units (high → low)</option>
-        <option value="sessions-desc">Sessions (high → low)</option>
-        <option value="cvr-desc">CVR (high → low)</option>
-        <option value="refund-desc">Refund Cost (high → low)</option>
-        <option value="sku-asc">SKU (A → Z)</option>
+        <option value="totalSales-desc">Total Sales (high → low)</option>
+        <option value="totalCaseEq-desc">Total Cases (high → low)</option>
+        <option value="amzSales-desc">Amazon Sales (high → low)</option>
+        <option value="webSales-desc">Web Sales (high → low)</option>
+        <option value="webGrossMargin-desc">Web Margin % (high → low)</option>
+        <option value="product_name-asc">Product Name (A → Z)</option>
       </select>
       <span class="text-xs text-slate-500 ml-auto hidden sm:inline">Tip: click any column header to sort</span>
     </div>
@@ -173,14 +365,16 @@
       <table class="w-full text-sm">
         <thead class="bg-cocoa text-white text-xs uppercase">
           <tr id="products-head">
-            <th class="px-3 py-2 text-left cursor-pointer hover:bg-white/10 sortable" data-sort="sku">Internal SKU <span class="sort-arrow"></span></th>
-            <th class="px-3 py-2 text-left">ASIN</th>
-            <th class="px-3 py-2 text-left">Product Name</th>
-            <th class="px-3 py-2 text-right cursor-pointer hover:bg-white/10 sortable" data-sort="units">Units <span class="sort-arrow"></span></th>
-            <th class="px-3 py-2 text-right cursor-pointer hover:bg-white/10 sortable" data-sort="sessions">Sessions <span class="sort-arrow"></span></th>
-            <th class="px-3 py-2 text-right cursor-pointer hover:bg-white/10 sortable" data-sort="cvr">CVR <span class="sort-arrow"></span></th>
-            <th class="px-3 py-2 text-right cursor-pointer hover:bg-white/10 sortable" data-sort="sales">Sales <span class="sort-arrow"></span></th>
-            <th class="px-3 py-2 text-right cursor-pointer hover:bg-white/10 sortable" data-sort="refund">Refund Cost <span class="sort-arrow"></span></th>
+            <th class="px-3 py-2 text-left cursor-pointer hover:bg-white/10 sortable" data-sort="product_name">Product <span class="sort-arrow"></span></th>
+            <th class="px-3 py-2 text-left">Web SKU</th>
+            <th class="px-3 py-2 text-left">Amazon SKU</th>
+            <th class="px-3 py-2 text-right cursor-pointer hover:bg-white/10 sortable" data-sort="amzUnits">Amz Cases <span class="sort-arrow"></span></th>
+            <th class="px-3 py-2 text-right cursor-pointer hover:bg-white/10 sortable" data-sort="webCaseEq">Web Case-eq. <span class="sort-arrow"></span></th>
+            <th class="px-3 py-2 text-right cursor-pointer hover:bg-white/10 sortable" data-sort="totalCaseEq">Total Cases <span class="sort-arrow"></span></th>
+            <th class="px-3 py-2 text-right cursor-pointer hover:bg-white/10 sortable" data-sort="amzSales">Amz Sales <span class="sort-arrow"></span></th>
+            <th class="px-3 py-2 text-right cursor-pointer hover:bg-white/10 sortable" data-sort="webSales">Web Sales <span class="sort-arrow"></span></th>
+            <th class="px-3 py-2 text-right cursor-pointer hover:bg-white/10 sortable" data-sort="totalSales">Total Sales <span class="sort-arrow"></span></th>
+            <th class="px-3 py-2 text-right cursor-pointer hover:bg-white/10 sortable" data-sort="webGrossMargin">Web Margin <span class="sort-arrow"></span></th>
           </tr>
         </thead>
         <tbody id="products-body"></tbody>
@@ -188,51 +382,16 @@
     </div>
   </div>
 
-  <div id="ppc-page" class="hidden max-w-7xl mx-auto px-6 pb-12">
-    <div class="flex items-center justify-between mt-6 mb-4 flex-wrap gap-3">
-      <h2 class="text-2xl font-bold text-navy">PPC Detail</h2>
-      <div id="ppc-month-pill" class="px-3 py-1 bg-cocoa text-white text-sm rounded font-medium"></div>
-    </div>
-    <p class="text-sm text-slate-600 mb-4">Campaign-level metrics. ACoS in red (&gt;25%) or green (&lt;15%). Note: pre-2026 months only have total ad spend, not campaign detail.</p>
-
-    <div class="bg-white rounded-lg shadow-sm p-3 mb-4 flex items-center gap-3 flex-wrap">
-      <label class="text-xs font-bold text-navy uppercase tracking-wide">Sort by:</label>
-      <select id="ppc-sort" class="border border-slate-300 rounded px-2 py-1.5 text-sm">
-        <option value="spend-desc">Spend (high → low)</option>
-        <option value="sales-desc">Sales (high → low)</option>
-        <option value="impressions-desc">Impressions (high → low)</option>
-        <option value="clicks-desc">Clicks (high → low)</option>
-        <option value="acos-desc">ACoS (high → low)</option>
-        <option value="acos-asc">ACoS (low → high)</option>
-        <option value="roas-desc">ROAS (high → low)</option>
-        <option value="orders-desc">Orders (high → low)</option>
-        <option value="campaign-asc">Campaign (A → Z)</option>
-      </select>
-      <span class="text-xs text-slate-500 ml-auto hidden sm:inline">Tip: click any column header to sort</span>
-    </div>
-
-    <div id="ppc-empty-notice" class="hidden bg-mid/40 border border-cocoa-mid/30 rounded p-4 mb-4 text-sm text-navy">
-      <strong>No campaign-level PPC data for this month.</strong> Only total ad spend is available — see the Dashboard tab for aggregated ad metrics.
-    </div>
-
+  <!-- ============ TRENDS PAGE ============ -->
+  <div id="trends-page" class="hidden max-w-7xl mx-auto px-6 mt-4 pb-12">
+    <h2 class="text-2xl font-bold text-navy mb-4 mt-2">Trends</h2>
+    <p class="text-sm text-slate-600 mb-4">Month-by-month across both channels. YoY where prior-year data exists. Seasonal pause months (May-Sept) are marked but shown for completeness.</p>
     <div class="bg-white rounded-lg shadow-sm overflow-x-auto">
       <table class="w-full text-sm">
         <thead class="bg-cocoa text-white text-xs uppercase">
-          <tr id="ppc-head">
-            <th class="px-3 py-2 text-left cursor-pointer hover:bg-white/10 sortable" data-sort="campaign">Campaign <span class="sort-arrow"></span></th>
-            <th class="px-3 py-2 text-center">Type</th>
-            <th class="px-3 py-2 text-right cursor-pointer hover:bg-white/10 sortable" data-sort="impressions">Impr <span class="sort-arrow"></span></th>
-            <th class="px-3 py-2 text-right cursor-pointer hover:bg-white/10 sortable" data-sort="clicks">Clicks <span class="sort-arrow"></span></th>
-            <th class="px-3 py-2 text-right">CTR</th>
-            <th class="px-3 py-2 text-right cursor-pointer hover:bg-white/10 sortable" data-sort="spend">Spend <span class="sort-arrow"></span></th>
-            <th class="px-3 py-2 text-right">CPC</th>
-            <th class="px-3 py-2 text-right cursor-pointer hover:bg-white/10 sortable" data-sort="orders">Orders <span class="sort-arrow"></span></th>
-            <th class="px-3 py-2 text-right cursor-pointer hover:bg-white/10 sortable" data-sort="sales">Sales <span class="sort-arrow"></span></th>
-            <th class="px-3 py-2 text-right cursor-pointer hover:bg-white/10 sortable" data-sort="acos">ACoS <span class="sort-arrow"></span></th>
-            <th class="px-3 py-2 text-right cursor-pointer hover:bg-white/10 sortable" data-sort="roas">ROAS <span class="sort-arrow"></span></th>
-          </tr>
+          <tr id="trends-head"></tr>
         </thead>
-        <tbody id="ppc-body"></tbody>
+        <tbody id="trends-body"></tbody>
       </table>
     </div>
   </div>
